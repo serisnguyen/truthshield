@@ -1,0 +1,250 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Send, Bot, User, ShieldAlert, Loader2, StopCircle } from 'lucide-react';
+import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
+
+interface Message {
+  id: string;
+  role: 'user' | 'model';
+  text: string;
+  isWarning?: boolean;
+  isStreaming?: boolean;
+}
+
+const ChatScreen: React.FC = () => {
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<Message[]>([
+    { 
+      id: 'init', 
+      role: 'model', 
+      text: 'Xin chào! Cháu là trợ lý an ninh TruthShield. Bác có nhận được tin nhắn hay cuộc gọi lạ nào không? Cháu có thể giúp bác kiểm tra xem có phải lừa đảo không ạ.',
+      isWarning: false
+    }
+  ]);
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatSessionRef = useRef<Chat | null>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
+
+  // Initialize Chat Session with Security-Focused System Instructions
+  useEffect(() => {
+    try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        chatSessionRef.current = ai.chats.create({
+            model: "gemini-2.5-flash",
+            config: {
+                systemInstruction: `Bạn là chuyên gia an ninh mạng và trợ lý ảo tận tâm của ứng dụng TruthShield. 
+                
+                Đối tượng hỗ trợ: Người lớn tuổi tại Việt Nam.
+                
+                Nhiệm vụ chính:
+                1. Phân tích các tình huống, tin nhắn, cuộc gọi để phát hiện dấu hiệu lừa đảo (Deepfake, giả danh công an/VKS, lừa đảo đầu tư, tình cảm, trúng thưởng).
+                2. Đưa ra lời khuyên hành động cụ thể, dễ hiểu, dễ thực hiện.
+                3. Trấn an người dùng khi họ hoảng sợ.
+
+                Phong cách giao tiếp:
+                - Xưng hô: "Cháu" - "Bác/Cô/Chú".
+                - Giọng điệu: Ân cần, kiên nhẫn, lễ phép, tin cậy.
+                - Ngôn ngữ: Tiếng Việt đơn giản, tránh thuật ngữ kỹ thuật (ví dụ: thay "xác thực 2 yếu tố" bằng "bảo mật 2 lớp").
+
+                Quy tắc phản hồi:
+                - Nếu phát hiện lừa đảo: Bắt đầu bằng "🚨 CẢNH BÁO NGUY HIỂM: Đây là lừa đảo!". Khuyên tuyệt đối KHÔNG chuyển tiền, KHÔNG cung cấp mã OTP/mật khẩu.
+                - Nếu nghi ngờ: Khuyên bình tĩnh, tắt máy, gọi lại cho người thân hoặc số chính thức để kiểm tra.
+                - Câu trả lời ngắn gọn, tách đoạn rõ ràng.`,
+            },
+        });
+    } catch (error) {
+        console.error("Chat initialization failed", error);
+    }
+  }, []);
+
+  const handleSend = async (textInput?: string) => {
+    const textToSend = textInput || input;
+    if (!textToSend.trim()) return;
+
+    // Add user message
+    const userMsgId = Date.now().toString();
+    const userMsg: Message = { id: userMsgId, role: 'user', text: textToSend };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      // Ensure session exists
+      if (!chatSessionRef.current) {
+         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+         chatSessionRef.current = ai.chats.create({ model: "gemini-2.5-flash" });
+      }
+
+      // Prepare placeholder for model response
+      const modelMsgId = (Date.now() + 1).toString();
+      setMessages(prev => [...prev, { 
+        id: modelMsgId, 
+        role: 'model', 
+        text: '', 
+        isStreaming: true 
+      }]);
+
+      const result = await chatSessionRef.current.sendMessageStream({
+        message: textToSend
+      });
+
+      let fullText = '';
+      
+      for await (const chunk of result) {
+        const chunkText = (chunk as GenerateContentResponse).text || '';
+        fullText += chunkText;
+        
+        setMessages(prev => prev.map(msg => 
+          msg.id === modelMsgId 
+            ? { 
+                ...msg, 
+                text: fullText,
+                // Detect warning keywords dynamically
+                isWarning: /lừa đảo|cảnh báo|nguy hiểm|tuyệt đối không|chặn số|công an giả/i.test(fullText)
+              } 
+            : msg
+        ));
+      }
+      
+      setMessages(prev => prev.map(msg => 
+        msg.id === modelMsgId ? { ...msg, isStreaming: false } : msg
+      ));
+
+    } catch (error) {
+      console.error("Chat error", error);
+      setMessages(prev => [...prev, { 
+        id: 'err-' + Date.now(), 
+        role: 'model', 
+        text: "Mạng đang chập chờn quá ạ. Bác kiểm tra lại Wifi hoặc 4G giúp cháu rồi thử lại nhé.", 
+        isWarning: true 
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const SuggestionButton = ({ text }: { text: string }) => (
+    <button 
+      onClick={() => handleSend(text)}
+      disabled={isLoading}
+      className="flex-shrink-0 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 px-4 py-2.5 rounded-full text-sm text-slate-700 font-medium shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {text}
+    </button>
+  );
+
+  return (
+    <div className="h-full flex flex-col bg-[#F8FAFC] relative">
+      {/* Header */}
+      <div className="pt-20 md:pt-6 px-6 pb-4 border-b border-slate-200 bg-white z-10 flex items-center gap-4 shadow-sm sticky top-0">
+         <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200 shadow-inner relative">
+            <Bot size={28} className="text-blue-600" />
+            <div className="absolute -bottom-1 -right-1 bg-white p-0.5 rounded-full">
+               <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse border border-white"></div>
+            </div>
+         </div>
+         <div>
+           <h2 className="text-slate-800 font-bold text-xl">Trợ Lý An Ninh</h2>
+           <p className="text-slate-500 text-xs font-medium">Chuyên gia chống lừa đảo 24/7</p>
+         </div>
+      </div>
+
+      {/* Chat Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50/50 pb-32 scroll-smooth">
+        {messages.map((msg) => (
+          <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'} animate-in slide-in-from-bottom-2 duration-300`}>
+            
+            {/* Avatar */}
+            <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center shadow-sm border ${
+              msg.role === 'user' 
+                ? 'bg-white border-slate-200' 
+                : (msg.isWarning ? 'bg-red-100 border-red-200' : 'bg-blue-100 border-blue-200')
+            }`}>
+              {msg.role === 'user' 
+                ? <User size={20} className="text-slate-600" /> 
+                : <Bot size={20} className={msg.isWarning ? 'text-red-600' : 'text-blue-600'} />
+              }
+            </div>
+            
+            {/* Bubble */}
+            <div className={`max-w-[85%] p-4 rounded-2xl text-[15px] leading-relaxed shadow-sm ${
+              msg.role === 'user' 
+                ? 'bg-blue-600 text-white rounded-tr-none' 
+                : msg.isWarning 
+                  ? 'bg-red-50 border-l-4 border-red-500 text-slate-900 rounded-tl-none ring-1 ring-red-100' 
+                  : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'
+            }`}>
+              {msg.isWarning && (
+                <div className="flex items-center gap-2 font-bold text-red-600 mb-2 uppercase text-xs tracking-wide border-b border-red-200 pb-2">
+                  <ShieldAlert size={16}/> Cảnh báo an ninh
+                </div>
+              )}
+              <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+              {msg.isStreaming && (
+                 <span className="inline-block w-2 h-4 ml-1 bg-current opacity-50 animate-pulse align-middle">|</span>
+              )}
+            </div>
+          </div>
+        ))}
+        
+        {isLoading && messages[messages.length - 1]?.role === 'user' && (
+           <div className="flex gap-3 animate-pulse">
+              <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
+                 <Loader2 size={20} className="text-blue-400 animate-spin" />
+              </div>
+              <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl rounded-tl-none flex gap-1.5 items-center shadow-sm h-12">
+                 <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></span>
+                 <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-75"></span>
+                 <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-150"></span>
+              </div>
+           </div>
+        )}
+        <div ref={messagesEndRef} className="h-4" />
+      </div>
+
+      {/* Suggestions & Input */}
+      <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 pb-8 md:pb-4 shadow-[0_-8px_30px_rgba(0,0,0,0.04)] z-20">
+        
+        {/* Quick Prompts - Only show when not loading to prevent spam clicking */}
+        {!isLoading && (
+          <div className="flex gap-2 overflow-x-auto pb-3 mb-1 no-scrollbar mask-linear-fade">
+             <SuggestionButton text="Kiểm tra tin nhắn này giúp bác" />
+             <SuggestionButton text="Công an gọi video yêu cầu chuyển tiền?" />
+             <SuggestionButton text="Nhận được link trúng thưởng lạ" />
+             <SuggestionButton text="Con cái gọi giọng lạ lắm" />
+          </div>
+        )}
+
+        <div className="relative flex items-center gap-2">
+          <input 
+            type="text" 
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            placeholder="Nhập câu hỏi hoặc dán tin nhắn vào đây..."
+            disabled={isLoading}
+            className="flex-1 bg-slate-100 text-slate-900 rounded-full py-3.5 pl-6 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-transparent focus:border-blue-500 transition-all text-base placeholder:text-slate-400 disabled:opacity-60 disabled:bg-slate-50"
+          />
+          <button 
+            onClick={() => handleSend()}
+            disabled={!input.trim() || isLoading}
+            className={`absolute right-2 top-1.5 bottom-1.5 aspect-square rounded-full flex items-center justify-center text-white transition-all shadow-md hover:shadow-lg active:scale-95 ${
+              isLoading ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} className="ml-0.5" />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ChatScreen;
