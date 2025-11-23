@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
-import { MessageSquareText, Sparkles, AlertTriangle, CheckCircle, Copy, Search, ArrowRight } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+import { MessageSquareText, Sparkles, AlertTriangle, CheckCircle, Copy, Search, ArrowRight, ShieldAlert } from 'lucide-react';
+import { analyzeMessageRisk } from '../services/aiService';
 
 const MessageGuard: React.FC = () => {
   const [input, setInput] = useState('');
@@ -14,42 +15,25 @@ const MessageGuard: React.FC = () => {
     setResult(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      // Use the Secure AI Service
+      const analysis = await analyzeMessageRisk(input);
       
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
-          { role: "user", parts: [{ text: `Analyze this text message (in Vietnamese) for potential scam indicators. 
-          Text: "${input}"
-          
-          Classify as: SAFE, SUSPICIOUS, or SCAM.
-          Then provide a very short (1 sentence) explanation in Vietnamese suitable for elderly people.
-          Format: CLASSIFICATION | Explanation` }] }
-        ],
-      });
-
-      const text = response.text || "";
-      const [classification, reason] = text.split('|');
-      
-      if (classification.trim().includes('SCAM')) setResult('scam');
-      else if (classification.trim().includes('SUSPICIOUS')) setResult('suspicious');
-      else setResult('safe');
-      
-      setExplanation(reason || "Không thể phân tích chi tiết.");
+      setResult(analysis.result);
+      setExplanation(analysis.explanation);
 
     } catch (error) {
       setResult('suspicious');
-      setExplanation("Lỗi kết nối AI. Hãy cẩn trọng với tin nhắn này.");
+      setExplanation("Có lỗi xảy ra khi kết nối. Hãy cẩn trọng.");
     } finally {
       setAnalyzing(false);
     }
   };
 
   return (
-    <div className="p-6 pt-20 pb-32 min-h-screen flex flex-col max-w-3xl mx-auto">
+    <div className="p-6 pt-20 pb-32 min-h-screen flex flex-col max-w-3xl mx-auto animate-in fade-in duration-300">
       <div className="mb-8">
         <h2 className="text-3xl font-bold text-slate-800 mb-2">Kiểm Tra <span className="text-blue-600">Tin Nhắn</span></h2>
-        <p className="text-slate-500 text-base">Dán nội dung tin nhắn vào bên dưới để AI kiểm tra xem có lừa đảo không.</p>
+        <p className="text-slate-500 text-base">Dán nội dung tin nhắn vào bên dưới để hệ thống AI (hoặc bộ lọc offline) kiểm tra.</p>
       </div>
 
       <div className="flex-1 flex flex-col gap-6">
@@ -66,7 +50,17 @@ const MessageGuard: React.FC = () => {
             ></textarea>
             
             <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-100">
-               <button className="text-sm text-slate-500 hover:text-blue-600 font-medium flex items-center gap-1.5 transition-colors">
+               <button 
+                 onClick={async () => {
+                    try {
+                        const text = await navigator.clipboard.readText();
+                        setInput(text);
+                    } catch (e) {
+                        alert("Không thể truy cập bộ nhớ tạm. Vui lòng dán thủ công.");
+                    }
+                 }}
+                 className="text-sm text-slate-500 hover:text-blue-600 font-medium flex items-center gap-1.5 transition-colors"
+               >
                  <Copy size={16} /> Dán từ bộ nhớ
                </button>
                <button 
@@ -90,7 +84,7 @@ const MessageGuard: React.FC = () => {
           }`}>
              <div className="flex items-center gap-4 mb-3">
                 {result === 'safe' && <CheckCircle className="text-green-600 fill-green-100" size={40} />}
-                {result === 'scam' && <AlertTriangle className="text-red-600 fill-red-100" size={40} />}
+                {result === 'scam' && <ShieldAlert className="text-red-600 fill-red-100" size={40} />}
                 {result === 'suspicious' && <Search className="text-amber-600 fill-amber-100" size={40} />}
                 
                 <div>

@@ -1,15 +1,20 @@
+
 import React, { useState, useEffect } from 'react';
-import { PhoneOff, ShieldAlert, HelpCircle, AlertTriangle, Lock, BrainCircuit } from 'lucide-react';
+import { PhoneOff, ShieldAlert, HelpCircle, AlertTriangle, Lock, BrainCircuit, LocateFixed, Send } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface AlertOverlayProps {
   onClose: () => void;
 }
 
 const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
+  const { addAlertToHistory, user } = useAuth();
   const [riskScore, setRiskScore] = useState(0);
   const [challengeQuestion, setChallengeQuestion] = useState("");
+  const [sosSent, setSosSent] = useState(false);
 
-  const challenges = [
+  // Default challenges if user hasn't set one
+  const defaultChallenges = [
     "Hỏi: 'Hôm qua nhà mình ăn món gì?'",
     "Hỏi: 'Tên con vật nuôi đầu tiên là gì?'",
     "Yêu cầu: 'Quay mặt sang trái rồi sang phải'",
@@ -18,6 +23,14 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
   ];
 
   useEffect(() => {
+    // Determine which question to show
+    if (user?.securityQuestion) {
+        setChallengeQuestion(`Câu hỏi bí mật: "${user.securityQuestion}"`);
+    } else {
+        setChallengeQuestion(defaultChallenges[Math.floor(Math.random() * defaultChallenges.length)]);
+    }
+
+    // Animation for risk score
     const targetScore = Math.floor(Math.random() * (99 - 88 + 1) + 88);
     let current = 0;
     const interval = setInterval(() => {
@@ -29,10 +42,39 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
       setRiskScore(current);
     }, 20);
 
-    setChallengeQuestion(challenges[Math.floor(Math.random() * challenges.length)]);
-
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
+
+  const handleAction = (action: 'dismiss' | 'block') => {
+    addAlertToHistory({
+      type: 'deepfake',
+      riskScore: riskScore,
+      details: action === 'block' ? 'Đã chặn cuộc gọi Deepfake' : 'Đã bỏ qua cảnh báo Deepfake'
+    });
+    onClose();
+  };
+
+  const handleSOS = () => {
+    setSosSent(true);
+    addAlertToHistory({
+        type: 'sos',
+        riskScore: 100,
+        details: 'Đã gửi tín hiệu cầu cứu SOS kèm vị trí'
+    });
+    
+    // Simulate getting location
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition((position) => {
+             console.log("SOS Location:", position.coords.latitude, position.coords.longitude);
+        }, () => {
+             console.log("Location access denied for SOS");
+        });
+    }
+
+    setTimeout(() => {
+        alert("Đã gửi tin nhắn SOS kèm vị trí đến người thân!");
+    }, 1000);
+  };
 
   return (
     <div className="fixed inset-0 z-[100] bg-red-600/30 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -77,10 +119,20 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
               </div>
            </div>
 
+           {/* SOS Button */}
+           <button 
+             onClick={handleSOS}
+             disabled={sosSent}
+             className={`w-full py-3 ${sosSent ? 'bg-green-600' : 'bg-slate-800 hover:bg-slate-900'} text-white rounded-xl flex items-center justify-center gap-2 font-bold shadow-md transition-all`}
+           >
+              {sosSent ? <Send size={20} /> : <LocateFixed size={20} />}
+              {sosSent ? 'Đã Gửi SOS' : 'Gửi Vị Trí & Cầu Cứu (SOS)'}
+           </button>
+
            {/* Action Buttons */}
            <div className="w-full space-y-3 pt-2">
               <button 
-                onClick={onClose}
+                onClick={() => handleAction('block')}
                 className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl flex items-center justify-center gap-3 shadow-lg shadow-red-200 transition-transform active:scale-95 group border-b-4 border-red-800 active:border-b-0 active:translate-y-1"
               >
                  <PhoneOff size={28} className="fill-current group-hover:animate-shake" />
@@ -88,7 +140,7 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
               </button>
 
               <button 
-                onClick={onClose}
+                onClick={() => handleAction('dismiss')}
                 className="w-full py-4 bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center gap-2 transition-colors font-bold"
               >
                  <Lock size={18} />

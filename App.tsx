@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Shield, Users, MessageSquareText, 
-  ScanFace, Activity, Bot, PlayCircle, UserCircle
+  ScanFace, Activity, Bot, PlayCircle, UserCircle, BookOpen
 } from 'lucide-react';
 import HomeScreen from './components/HomeScreen';
 import FamilyScreen from './components/FamilyScreen';
@@ -11,8 +11,9 @@ import AlertOverlay from './components/AlertOverlay';
 import TutorialModal from './components/TutorialModal';
 import ProfileScreen from './components/ProfileScreen';
 import { AuthProvider } from './context/AuthContext';
+import ScamLibraryScreen from './components/ScamLibraryScreen';
 
-export type Tab = 'home' | 'message' | 'family' | 'chat' | 'profile';
+export type Tab = 'home' | 'message' | 'family' | 'chat' | 'profile' | 'library';
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('home');
@@ -40,6 +41,8 @@ const AppContent: React.FC = () => {
         return <ChatScreen />;
       case 'profile':
         return <ProfileScreen />;
+      case 'library':
+        return <ScamLibraryScreen />;
       default:
         return <HomeScreen onTriggerAlert={triggerAlert} />;
     }
@@ -88,6 +91,13 @@ const AppContent: React.FC = () => {
             description="Phân tích lừa đảo"
             isActive={activeTab === 'message'} 
             onClick={() => setActiveTab('message')} 
+          />
+          <NavSideItem 
+            icon={<BookOpen size={24} />} 
+            label="Thư Viện Cảnh Báo" 
+            description="Tìm hiểu thủ đoạn mới"
+            isActive={activeTab === 'library'} 
+            onClick={() => setActiveTab('library')} 
           />
           <NavSideItem 
             icon={<UserCircle size={24} />} 
@@ -166,11 +176,17 @@ const AppContent: React.FC = () => {
               isActive={activeTab === 'family'} 
               onClick={() => setActiveTab('family')} 
             />
-             <NavButton 
+            <NavButton 
               icon={<MessageSquareText size={24} />} 
               label="Tin Nhắn" 
               isActive={activeTab === 'message'} 
               onClick={() => setActiveTab('message')} 
+            />
+            <NavButton 
+              icon={<BookOpen size={24} />} 
+              label="Thư Viện" 
+              isActive={activeTab === 'library'} 
+              onClick={() => setActiveTab('library')} 
             />
             <NavButton 
               icon={<UserCircle size={24} />} 
