@@ -147,6 +147,11 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
                  Tôi biết người này (An toàn)
               </button>
            </div>
+           
+           {/* Disclaimer */}
+           <p className="text-[10px] text-slate-400 uppercase font-bold">
+             * Đây là tình huống mô phỏng giả định *
+           </p>
 
         </div>
       </div>

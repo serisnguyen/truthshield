@@ -2,7 +2,10 @@
 import { GoogleGenAI } from "@google/genai";
 
 // Initialize AI Client
-// IN PRODUCTION: This should be called from a Backend Server, not Frontend.
+// ⚠️ WARNING: API KEY EXPOSURE RISK
+// This is a frontend-only demo. In a production environment, 
+// NEVER expose your API key in client-side code.
+// You MUST use a Backend Server (Node.js/Python) as a proxy to call Gemini API.
 const getAIClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {

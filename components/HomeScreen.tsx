@@ -1,5 +1,6 @@
+
 import React, { useEffect, useRef, useState } from 'react';
-import { ShieldCheck, Power, Activity, Smartphone, Newspaper, RefreshCw, ExternalLink, Eye, Lock } from 'lucide-react';
+import { ShieldCheck, Power, Activity, Smartphone, Newspaper, RefreshCw, ExternalLink, Eye, Lock, AlertTriangle } from 'lucide-react';
 
 interface HomeScreenProps {
   onTriggerAlert: () => void;
@@ -119,6 +120,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
   return (
     <div className="relative w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#F8FAFC]">
       
+      {/* --- DISCLAIMER BANNER (DEMO MODE) --- */}
+      <div className="fixed top-16 left-0 right-0 md:top-0 md:left-20 lg:left-72 z-40 bg-amber-100 border-b border-amber-200 px-4 py-2 flex items-center justify-center gap-2 text-amber-800 text-xs font-bold shadow-sm">
+        <AlertTriangle size={14} />
+        <span>CHẾ ĐỘ MÔ PHỎNG: Đây là bản Demo giáo dục. Các tính năng AI Detection hiện tại là giả lập.</span>
+      </div>
+
       {/* --- REAL-TIME CAMERA BACKGROUND --- */}
       <div className="absolute inset-0 z-0 h-screen fixed">
         {isScanning ? (
@@ -146,7 +153,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
       </div>
 
       {/* --- MAIN UI LAYER --- */}
-      <div className="relative z-10 flex-1 flex flex-col p-6 pt-20 md:pt-6">
+      <div className="relative z-10 flex-1 flex flex-col p-6 pt-28 md:pt-14">
         
         {/* Top Indicators (Active State) */}
         {permissionGranted && (
