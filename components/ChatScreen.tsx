@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, ShieldAlert, Loader2, StopCircle } from 'lucide-react';
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
+import { useAuth } from '../context/AuthContext';
 
 interface Message {
   id: string;
@@ -11,15 +12,9 @@ interface Message {
 }
 
 const ChatScreen: React.FC = () => {
+  const { user } = useAuth();
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    { 
-      id: 'init', 
-      role: 'model', 
-      text: 'Xin chào! Cháu là trợ lý an ninh TruthShield. Bác có nhận được tin nhắn hay cuộc gọi lạ nào không? Cháu có thể giúp bác kiểm tra xem có phải lừa đảo không ạ.',
-      isWarning: false
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatSessionRef = useRef<Chat | null>(null);
@@ -32,37 +27,52 @@ const ChatScreen: React.FC = () => {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // Initialize Chat Session with Security-Focused System Instructions
+  // Initialize Chat Session
   useEffect(() => {
-    try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        chatSessionRef.current = ai.chats.create({
-            model: "gemini-2.5-flash",
-            config: {
-                systemInstruction: `Bạn là chuyên gia an ninh mạng và trợ lý ảo tận tâm của ứng dụng TruthShield. 
-                
-                Đối tượng hỗ trợ: Người lớn tuổi tại Việt Nam.
-                
-                Nhiệm vụ chính:
-                1. Phân tích các tình huống, tin nhắn, cuộc gọi để phát hiện dấu hiệu lừa đảo (Deepfake, giả danh công an/VKS, lừa đảo đầu tư, tình cảm, trúng thưởng).
-                2. Đưa ra lời khuyên hành động cụ thể, dễ hiểu, dễ thực hiện.
-                3. Trấn an người dùng khi họ hoảng sợ.
+    const initChat = () => {
+      try {
+          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const userName = user ? user.name : "Bác/Cô/Chú";
+          
+          chatSessionRef.current = ai.chats.create({
+              model: "gemini-2.5-flash",
+              config: {
+                  systemInstruction: `Bạn là chuyên gia an ninh mạng và trợ lý ảo tận tâm của ứng dụng TruthShield. 
+                  
+                  Thông tin người dùng hiện tại: Tên là ${userName}. Hãy gọi họ bằng tên thân mật hoặc "Bác/Cô/Chú" nếu phù hợp ngữ cảnh.
+                  
+                  Nhiệm vụ chính:
+                  1. Phân tích các tình huống, tin nhắn, cuộc gọi để phát hiện dấu hiệu lừa đảo (Deepfake, giả danh công an/VKS, lừa đảo đầu tư, tình cảm, trúng thưởng).
+                  2. Đưa ra lời khuyên hành động cụ thể, dễ hiểu, dễ thực hiện cho người lớn tuổi.
+                  3. Trấn an người dùng khi họ hoảng sợ.
 
-                Phong cách giao tiếp:
-                - Xưng hô: "Cháu" - "Bác/Cô/Chú".
-                - Giọng điệu: Ân cần, kiên nhẫn, lễ phép, tin cậy.
-                - Ngôn ngữ: Tiếng Việt đơn giản, tránh thuật ngữ kỹ thuật (ví dụ: thay "xác thực 2 yếu tố" bằng "bảo mật 2 lớp").
+                  Phong cách giao tiếp:
+                  - Xưng hô: "Cháu" - "${userName}".
+                  - Giọng điệu: Ân cần, kiên nhẫn, lễ phép, tin cậy.
+                  - Ngôn ngữ: Tiếng Việt đơn giản, tránh thuật ngữ kỹ thuật.
 
-                Quy tắc phản hồi:
-                - Nếu phát hiện lừa đảo: Bắt đầu bằng "🚨 CẢNH BÁO NGUY HIỂM: Đây là lừa đảo!". Khuyên tuyệt đối KHÔNG chuyển tiền, KHÔNG cung cấp mã OTP/mật khẩu.
-                - Nếu nghi ngờ: Khuyên bình tĩnh, tắt máy, gọi lại cho người thân hoặc số chính thức để kiểm tra.
-                - Câu trả lời ngắn gọn, tách đoạn rõ ràng.`,
-            },
-        });
-    } catch (error) {
-        console.error("Chat initialization failed", error);
-    }
-  }, []);
+                  Quy tắc phản hồi:
+                  - Nếu phát hiện lừa đảo: Bắt đầu bằng "🚨 CẢNH BÁO: Đây là lừa đảo!". Khuyên tuyệt đối KHÔNG chuyển tiền.
+                  - Nếu nghi ngờ: Khuyên bình tĩnh, tắt máy, gọi lại cho người thân.
+                  - Câu trả lời ngắn gọn, tách đoạn rõ ràng.`,
+              },
+          });
+
+          // Set initial greeting
+          setMessages([{ 
+            id: 'init', 
+            role: 'model', 
+            text: `Xin chào ${userName}! Cháu là trợ lý an ninh TruthShield. ${user ? 'Hôm nay bác có nhận được tin nhắn hay cuộc gọi lạ nào không ạ?' : 'Bác hãy đăng nhập để cháu hỗ trợ tốt hơn nhé.'}`,
+            isWarning: false
+          }]);
+
+      } catch (error) {
+          console.error("Chat initialization failed", error);
+      }
+    };
+
+    initChat();
+  }, [user]);
 
   const handleSend = async (textInput?: string) => {
     const textToSend = textInput || input;

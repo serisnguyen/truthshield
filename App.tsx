@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Shield, Users, MessageSquareText, 
-  ScanFace, Activity, Bot, PlayCircle
+  ScanFace, Activity, Bot, PlayCircle, UserCircle
 } from 'lucide-react';
 import HomeScreen from './components/HomeScreen';
 import FamilyScreen from './components/FamilyScreen';
@@ -9,10 +9,12 @@ import MessageGuard from './components/MessageGuard';
 import ChatScreen from './components/ChatScreen';
 import AlertOverlay from './components/AlertOverlay';
 import TutorialModal from './components/TutorialModal';
+import ProfileScreen from './components/ProfileScreen';
+import { AuthProvider } from './context/AuthContext';
 
-export type Tab = 'home' | 'message' | 'family' | 'chat';
+export type Tab = 'home' | 'message' | 'family' | 'chat' | 'profile';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showAlert, setShowAlert] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -36,6 +38,8 @@ const App: React.FC = () => {
         return <FamilyScreen />;
       case 'chat':
         return <ChatScreen />;
+      case 'profile':
+        return <ProfileScreen />;
       default:
         return <HomeScreen onTriggerAlert={triggerAlert} />;
     }
@@ -84,6 +88,13 @@ const App: React.FC = () => {
             description="Phân tích lừa đảo"
             isActive={activeTab === 'message'} 
             onClick={() => setActiveTab('message')} 
+          />
+          <NavSideItem 
+            icon={<UserCircle size={24} />} 
+            label="Cá Nhân" 
+            description="Tài khoản & Cài đặt"
+            isActive={activeTab === 'profile'} 
+            onClick={() => setActiveTab('profile')} 
           />
            <div className="pt-4 border-t border-slate-100 mt-4">
             <NavSideItem 
@@ -161,6 +172,12 @@ const App: React.FC = () => {
               isActive={activeTab === 'message'} 
               onClick={() => setActiveTab('message')} 
             />
+            <NavButton 
+              icon={<UserCircle size={24} />} 
+              label="Cá Nhân" 
+              isActive={activeTab === 'profile'} 
+              onClick={() => setActiveTab('profile')} 
+            />
           </div>
         </div>
       </main>
@@ -171,6 +188,14 @@ const App: React.FC = () => {
     </div>
   );
 };
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
 
 // --- Sub Components ---
 

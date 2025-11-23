@@ -1,8 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Shield, Power, ShieldCheck, Lock, Eye, Activity, Smartphone } from 'lucide-react';
+import { ShieldCheck, Power, Activity, Smartphone, Newspaper, RefreshCw, ExternalLink, Eye, Lock } from 'lucide-react';
 
 interface HomeScreenProps {
   onTriggerAlert: () => void;
+}
+
+interface NewsItem {
+  id: number;
+  title: string;
+  source: string;
+  date: string;
+  description: string;
+  url: string;
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
@@ -10,6 +19,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+
+  // News State
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [loadingNews, setLoadingNews] = useState(false);
+  const [showNews, setShowNews] = useState(false);
 
   // Handle Camera Stream
   useEffect(() => {
@@ -66,12 +80,47 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
     };
   }, [permissionGranted]);
 
+  const fetchNews = async () => {
+    setLoadingNews(true);
+    setShowNews(true);
+    // Simulate an API Call
+    setTimeout(() => {
+      const mockNews: NewsItem[] = [
+        {
+          id: 1,
+          title: "Cảnh báo chiêu trò lừa đảo giả danh Công an qua Video Call",
+          source: "Báo Công An",
+          date: "Vừa xong",
+          description: "Các đối tượng sử dụng Deepfake để giả mạo khuôn mặt và giọng nói của cán bộ công an nhằm yêu cầu chuyển tiền.",
+          url: "https://cand.com.vn/Canh-bao/canh-bao-thu-doan-lua-dao-gia-danh-cong-an-goi-video-call-i693245/"
+        },
+        {
+          id: 2,
+          title: "Thủ đoạn mới: Giả mạo nhân viên ngân hàng nâng hạn mức thẻ tín dụng",
+          source: "VnExpress",
+          date: "2 giờ trước",
+          description: "Tuyệt đối không cung cấp mã OTP cho bất kỳ ai tự xưng là nhân viên ngân hàng.",
+          url: "https://vnexpress.net/thu-doan-gia-mao-nhan-vien-ngan-hang-nang-han-muc-the-tin-dung-4740588.html"
+        },
+        {
+          id: 3,
+          title: "Lừa đảo 'Con đang cấp cứu' tái xuất hiện tại TP.HCM",
+          source: "Tuổi Trẻ",
+          date: "Hôm nay",
+          description: "Các phụ huynh cần bình tĩnh và xác minh thông tin trực tiếp với nhà trường hoặc bệnh viện.",
+          url: "https://tuoitre.vn/canh-bao-lua-dao-con-dang-cap-cuu-tai-xuat-hien-20240312112545678.htm"
+        }
+      ];
+      setNews(mockNews);
+      setLoadingNews(false);
+    }, 1500);
+  };
+
   return (
-    <div className="relative w-full h-full flex flex-col overflow-hidden bg-[#F8FAFC]">
+    <div className="relative w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#F8FAFC]">
       
       {/* --- REAL-TIME CAMERA BACKGROUND --- */}
-      {/* We keep the background dark ONLY when camera is active for visibility, but UI is light */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 h-screen fixed">
         {isScanning ? (
           <>
              {cameraActive ? (
@@ -89,7 +138,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
                    </div>
                 </div>
              )}
-             {/* Overlay Gradient for text readability */}
              <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-transparent to-white/90"></div>
           </>
         ) : (
@@ -102,7 +150,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
         
         {/* Top Indicators (Active State) */}
         {permissionGranted && (
-          <div className="flex justify-between items-start animate-in fade-in duration-1000 bg-white/80 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex justify-between items-start animate-in fade-in duration-1000 bg-white/80 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200 mb-6">
              <div className="flex items-center gap-2 text-green-600">
                 <span className="relative flex h-3 w-3">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -120,19 +168,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
         )}
 
         {/* CENTER INTERFACE */}
-        <div className="flex-1 flex flex-col items-center justify-center">
+        <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
           
           {permissionGranted ? (
             /* --- STATE: ACTIVE SCANNING --- */
             <div className="flex flex-col items-center w-full max-w-md">
                
-               {/* Scanner Ring Animation - Clean Look */}
                <div className="relative w-64 h-64 flex items-center justify-center mb-10">
                  <div className="absolute inset-0 border-4 border-blue-100 rounded-full animate-[spin_10s_linear_infinite]"></div>
                  <div className="absolute inset-4 border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-[spin_4s_linear_infinite]"></div>
                  <div className="absolute inset-0 rounded-full border-2 border-blue-200 scale-110 animate-pulse"></div>
                  
-                 {/* Center Content */}
                  <div className="text-center z-10 bg-white shadow-lg p-8 rounded-full border border-blue-100">
                     <ShieldCheck className="w-16 h-16 text-green-500 mx-auto mb-2" />
                     <div className="text-xl font-bold text-slate-800">AN TOÀN</div>
@@ -140,7 +186,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
                  </div>
                </div>
 
-               {/* Action Panel */}
                <div className="w-full bg-white shadow-xl border border-slate-200 rounded-2xl p-6 space-y-4 animate-in slide-in-from-bottom-4">
                   <div className="flex items-center justify-between text-sm text-slate-600 border-b border-slate-100 pb-4">
                     <span className="flex items-center gap-2 font-medium"><Activity size={18} className="text-blue-500" /> Trạng thái hệ thống</span>
@@ -156,7 +201,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
                   </button>
                </div>
 
-               {/* Stop Button */}
                <button 
                  onClick={() => setPermissionGranted(false)}
                  className="mt-6 px-6 py-2 bg-white border border-slate-300 text-slate-600 rounded-full text-sm font-medium hover:bg-slate-50 hover:text-slate-900 flex items-center gap-2 transition-colors shadow-sm"
@@ -201,6 +245,71 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
             </div>
           )}
         </div>
+
+        {/* --- NEWS SECTION --- */}
+        <div className="w-full max-w-md mx-auto mt-12 mb-20">
+          {!showNews ? (
+            <button 
+              onClick={fetchNews}
+              className="w-full py-4 bg-white hover:bg-blue-50 border border-slate-200 text-blue-700 rounded-2xl font-bold shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2"
+            >
+              <Newspaper size={20} />
+              Cập nhật tin tức lừa đảo mới nhất
+            </button>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-10 fade-in duration-500">
+              <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                  <Newspaper size={18} className="text-blue-600" /> 
+                  Tin Tức Cảnh Báo
+                </h3>
+                <button 
+                  onClick={fetchNews}
+                  className="p-2 hover:bg-white rounded-full transition-colors" 
+                  disabled={loadingNews}
+                >
+                  <RefreshCw size={16} className={`text-slate-500 ${loadingNews ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              
+              <div className="p-4 space-y-4 max-h-80 overflow-y-auto">
+                {loadingNews ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="animate-pulse">
+                        <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
+                        <div className="h-3 bg-slate-200 rounded w-full mb-1"></div>
+                        <div className="h-3 bg-slate-200 rounded w-2/3"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  news.map((item) => (
+                    <div key={item.id} className="group pb-4 border-b border-slate-100 last:border-0 last:pb-0">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{item.source}</span>
+                        <span className="text-xs text-slate-400">{item.date}</span>
+                      </div>
+                      <a 
+                        href={item.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="font-bold text-slate-800 text-sm mb-1 group-hover:text-blue-600 transition-colors flex items-start gap-1 cursor-pointer hover:underline"
+                      >
+                        {item.title}
+                        <ExternalLink size={14} className="flex-shrink-0 mt-0.5 text-slate-400 group-hover:text-blue-500" />
+                      </a>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        {item.description}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );

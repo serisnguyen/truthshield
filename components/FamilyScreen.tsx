@@ -1,16 +1,20 @@
 import React from 'react';
 import { Smartphone, ShieldCheck, Wifi, UserPlus, Link, CheckCircle2, Copy } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const FamilyScreen: React.FC = () => {
+  const { user } = useAuth();
+  
   const familyMembers = [
-    { name: 'Mẹ', status: 'safe', device: 'iPhone 14', connection: 'Đang online', risk: 'None' },
-    { name: 'Bố', status: 'safe', device: 'Samsung S24', connection: '5 phút trước', risk: 'None' },
-    { name: 'Em gái', status: 'pending', device: 'Chưa kích hoạt', connection: '--', risk: '--' },
+    { name: user ? user.name + ' (Tôi)' : 'Tôi', status: 'safe', device: 'iPhone 14', connection: 'Đang online', risk: 'None' },
+    { name: 'Vợ/Chồng', status: 'safe', device: 'Samsung S24', connection: '5 phút trước', risk: 'None' },
+    { name: 'Con', status: 'pending', device: 'Chưa kích hoạt', connection: '--', risk: '--' },
   ];
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText("FAMILY-8829");
+      const idToCopy = user ? user.familyId : "FAMILY-8829";
+      await navigator.clipboard.writeText(idToCopy);
       alert("Đã sao chép mã!");
     } catch (err) {
       console.warn("Clipboard write failed", err);
@@ -18,7 +22,7 @@ const FamilyScreen: React.FC = () => {
   };
 
   return (
-    <div className="p-6 pt-20 md:pt-10 pb-32 min-h-screen max-w-4xl mx-auto">
+    <div className="p-6 pt-20 md:pt-10 pb-32 min-h-screen max-w-4xl mx-auto animate-in fade-in duration-300">
       
       <div className="flex justify-between items-end mb-8 border-b border-slate-200 pb-6">
         <div>
@@ -99,7 +103,7 @@ const FamilyScreen: React.FC = () => {
          
          <div className="flex flex-col md:flex-row items-center justify-center gap-4">
             <div className="bg-white border-2 border-blue-200 rounded-xl px-8 py-4 font-mono text-2xl font-bold tracking-widest text-slate-800 shadow-sm select-all">
-              FAMILY-8829
+              {user ? user.familyId : "FAMILY-8829"}
             </div>
             <button 
               onClick={handleCopy}
