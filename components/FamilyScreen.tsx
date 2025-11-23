@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Smartphone, ShieldCheck, Wifi, UserPlus, Link, CheckCircle2, Copy, Trash2, PhoneOff, RefreshCw, AlertOctagon, Clock, Loader2, WifiOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -47,13 +46,14 @@ const FamilyScreen: React.FC = () => {
         setTimeLeft(remaining);
         setProgress((remaining / CODE_DURATION) * 100);
 
+        // Auto regenerate when expired
         if (remaining === 0) {
-            // Auto regenerate or show expired state
+            regenerateFamilyId();
         }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [user?.familyCodeTimestamp]);
+  }, [user?.familyCodeTimestamp, regenerateFamilyId]);
 
   const handleCopy = async () => {
     try {

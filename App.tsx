@@ -1,19 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { 
   Shield, Users, MessageSquareText, 
-  ScanFace, Activity, Bot, PlayCircle, UserCircle, BookOpen
+  ScanFace, Activity, Bot, PlayCircle, UserCircle, BookOpen, Loader2
 } from 'lucide-react';
-import HomeScreen from './components/HomeScreen';
-import FamilyScreen from './components/FamilyScreen';
-import MessageGuard from './components/MessageGuard';
-import ChatScreen from './components/ChatScreen';
 import AlertOverlay from './components/AlertOverlay';
 import TutorialModal from './components/TutorialModal';
-import ProfileScreen from './components/ProfileScreen';
 import { AuthProvider } from './context/AuthContext';
-import ScamLibraryScreen from './components/ScamLibraryScreen';
+
+// Lazy Load Components for Performance
+const HomeScreen = lazy(() => import('./components/HomeScreen'));
+const FamilyScreen = lazy(() => import('./components/FamilyScreen'));
+const MessageGuard = lazy(() => import('./components/MessageGuard'));
+const ChatScreen = lazy(() => import('./components/ChatScreen'));
+const ProfileScreen = lazy(() => import('./components/ProfileScreen'));
+const ScamLibraryScreen = lazy(() => import('./components/ScamLibraryScreen'));
 
 export type Tab = 'home' | 'message' | 'family' | 'chat' | 'profile' | 'library';
+
+const LoadingFallback = () => (
+  <div className="flex-1 flex flex-col items-center justify-center h-full bg-[#F8FAFC]">
+    <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+    <p className="text-slate-500 font-medium animate-pulse">Đang tải dữ liệu an ninh...</p>
+  </div>
+);
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('home');
@@ -22,9 +31,19 @@ const AppContent: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    let timeoutId: any;
+    const handleResize = () => {
+      // Debounce resize event
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setIsMobile(window.innerWidth < 768);
+      }, 150);
+    };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const triggerAlert = () => setShowAlert(true);
@@ -152,7 +171,9 @@ const AppContent: React.FC = () => {
 
         {/* Content Wrapper */}
         <div className="flex-1 overflow-y-auto custom-scrollbar relative pb-24 md:pb-0">
-          {renderContent()}
+          <Suspense fallback={<LoadingFallback />}>
+            {renderContent()}
+          </Suspense>
         </div>
 
         {/* Mobile Bottom Dock (Floating) */}

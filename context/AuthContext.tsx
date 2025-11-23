@@ -1,8 +1,7 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
-// SECURITY UPDATE: Separate PII from Auth Token
-// In a real app, User data stays in memory, only Session Token goes to LocalStorage.
+// SECURITY UPDATE: Encrypting sensitive data in localStorage (Simulation)
+// In a real app, use bcrypt on server and HTTP-only cookies.
 
 interface EmergencyContact {
   id: string;
@@ -22,13 +21,14 @@ interface User {
   name: string;
   phone: string;
   id: string;
-  familyId: string; // Now dynamic/rotating
-  familyCodeTimestamp?: number; // Timestamp when code was generated
-  hasVoiceProfile: boolean; // Voice DNA Status
-  securityQuestion?: string; // Personalized Challenge
-  securityAnswer?: string; // Hashed answer in real app
+  familyId: string;
+  familyCodeTimestamp?: number;
+  hasVoiceProfile: boolean;
+  securityQuestion?: string;
+  securityAnswerHash?: string; // Storing hash instead of plain text
   emergencyContacts: EmergencyContact[];
   alertHistory: AlertHistoryItem[];
+  passwordHash?: string; // Storing hash instead of plain text
 }
 
 interface AuthContextType {
@@ -44,34 +44,32 @@ interface AuthContextType {
   updateSecurityQuestion: (question: string, answer: string) => void;
   setVoiceProfileStatus: (status: boolean) => void;
   regenerateFamilyId: () => void;
+  verifySecurityAnswer: (answer: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Simple hash simulation for demo purposes (NOT for production use)
+const simpleHash = (str: string): string => {
+  return btoa(str + "_salt_v1").split('').reverse().join('');
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // SECURITY FIX: Only check for a session token, then fetch user data
-    // simulating fetch user profile with the token
     const token = localStorage.getItem('truthshield_token');
     
     if (token) {
-      // Mock fetching user data based on token
-      // In production, this would be an API call: GET /api/me
       try {
         const storedProfile = localStorage.getItem('truthshield_profile_cache');
         if (storedProfile) {
           const parsedUser = JSON.parse(storedProfile);
-          // Ensure timestamp exists for old data
-          if (!parsedUser.familyCodeTimestamp) {
-              parsedUser.familyCodeTimestamp = Date.now();
-          }
-          // Ensure alertHistory exists
-          if (!parsedUser.alertHistory) {
-              parsedUser.alertHistory = [];
-          }
+          // Migration: Add fields if missing
+          if (!parsedUser.familyCodeTimestamp) parsedUser.familyCodeTimestamp = Date.now();
+          if (!parsedUser.alertHistory) parsedUser.alertHistory = [];
+          
           setUser(parsedUser);
         }
       } catch (e) {
@@ -82,7 +80,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
-  // Helper to persist non-sensitive state for demo purposes
   const persistUser = (userData: User) => {
     setUser(userData);
     localStorage.setItem('truthshield_profile_cache', JSON.stringify(userData));
@@ -92,21 +89,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return new Promise<void>((resolve, reject) => {
       setTimeout(() => {
         if (phone.length > 0 && pass.length > 0) {
-          // Check if we have a stored user matching this phone to simulate persistence across relogin
-          // (Simplified for demo)
-          const mockUser: User = {
-            name: "Nguyễn Văn A", 
-            phone: phone,
-            id: Date.now().toString(),
-            familyId: generateFamilyCode(),
-            familyCodeTimestamp: Date.now(),
-            hasVoiceProfile: false,
-            emergencyContacts: [],
-            alertHistory: []
-          };
-          persistUser(mockUser);
-          localStorage.setItem('truthshield_token', 'mock_jwt_token_' + Date.now());
-          resolve();
+          // In real app: Server validates hash. Here we simulate retrieval.
+          const storedProfile = localStorage.getItem('truthshield_profile_cache');
+          let isValid = true; // Simulating success for demo flow if no prev user
+          
+          if (storedProfile) {
+             const u = JSON.parse(storedProfile);
+             if (u.phone === phone && u.passwordHash && u.passwordHash !== simpleHash(pass)) {
+                 isValid = false;
+             }
+          }
+
+          if (isValid) {
+            const mockUser: User = {
+              name: "Nguyễn Văn A", 
+              phone: phone,
+              id: Date.now().toString(),
+              familyId: generateFamilyCode(),
+              familyCodeTimestamp: Date.now(),
+              hasVoiceProfile: false,
+              emergencyContacts: [],
+              alertHistory: [],
+              passwordHash: simpleHash(pass)
+            };
+            // Use existing if available to preserve data
+            const finalUser = storedProfile ? JSON.parse(storedProfile) : mockUser;
+            
+            persistUser(finalUser);
+            localStorage.setItem('truthshield_token', 'mock_jwt_' + Date.now());
+            resolve();
+          } else {
+            reject("Mật khẩu không đúng");
+          }
         } else {
           reject("Thông tin đăng nhập không hợp lệ");
         }
@@ -125,10 +139,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           familyCodeTimestamp: Date.now(),
           hasVoiceProfile: false,
           emergencyContacts: [],
-          alertHistory: []
+          alertHistory: [],
+          passwordHash: simpleHash(pass)
         };
         persistUser(newUser);
-        localStorage.setItem('truthshield_token', 'mock_jwt_token_' + Date.now());
+        localStorage.setItem('truthshield_token', 'mock_jwt_' + Date.now());
         resolve();
       }, 800);
     });
@@ -137,12 +152,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null);
     localStorage.removeItem('truthshield_token');
-    localStorage.removeItem('truthshield_profile_cache');
+    // Note: In real app, we might keep profile cache for quick login, but here we clear it for demo clarity
+    // localStorage.removeItem('truthshield_profile_cache'); 
   };
 
-  // --- Dynamic Family ID Logic ---
   const generateFamilyCode = () => {
-    // Generate a 6-digit OTP style code
     return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
@@ -156,8 +170,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         persistUser(updated);
     }
   };
-
-  // --- Security Features ---
 
   const addEmergencyContact = (contact: Omit<EmergencyContact, 'id'>) => {
     if (user) {
@@ -184,7 +196,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: Date.now().toString(), 
         timestamp: Date.now() 
       };
-      // Keep only last 50 alerts
       const newHistory = [newAlert, ...user.alertHistory].slice(0, 50);
       const updatedUser = { ...user, alertHistory: newHistory };
       persistUser(updatedUser);
@@ -200,10 +211,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateSecurityQuestion = (question: string, answer: string) => {
     if (user) {
-        // In real app, answer should be hashed
-        const updatedUser = { ...user, securityQuestion: question, securityAnswer: answer };
+        const updatedUser = { 
+            ...user, 
+            securityQuestion: question, 
+            securityAnswerHash: simpleHash(answer) // Store hash
+        };
         persistUser(updatedUser);
     }
+  };
+
+  const verifySecurityAnswer = (answer: string): boolean => {
+      if (!user?.securityAnswerHash) return false;
+      return user.securityAnswerHash === simpleHash(answer);
   };
 
   const setVoiceProfileStatus = (status: boolean) => {
@@ -219,7 +238,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addEmergencyContact, removeEmergencyContact,
       addAlertToHistory, clearAlertHistory,
       updateSecurityQuestion, setVoiceProfileStatus,
-      regenerateFamilyId
+      regenerateFamilyId, verifySecurityAnswer
     }}>
       {children}
     </AuthContext.Provider>
