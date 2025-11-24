@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
 // SECURITY UPDATE: Encrypting sensitive data in localStorage (Simulation)
@@ -24,11 +25,11 @@ interface User {
   familyId: string;
   familyCodeTimestamp?: number;
   hasVoiceProfile: boolean;
-  securityQuestion?: string;
-  securityAnswerHash?: string; // Storing hash instead of plain text
+  securityQuestions?: string[]; // Changed to array of 3 questions
+  securityAnswerHash?: string; 
   emergencyContacts: EmergencyContact[];
   alertHistory: AlertHistoryItem[];
-  passwordHash?: string; // Storing hash instead of plain text
+  passwordHash?: string; 
 }
 
 interface AuthContextType {
@@ -41,10 +42,9 @@ interface AuthContextType {
   removeEmergencyContact: (id: string) => void;
   addAlertToHistory: (alert: Omit<AlertHistoryItem, 'id' | 'timestamp'>) => void;
   clearAlertHistory: () => void;
-  updateSecurityQuestion: (question: string, answer: string) => void;
+  updateSecurityQuestions: (questions: string[]) => void;
   setVoiceProfileStatus: (status: boolean) => void;
   regenerateFamilyId: () => void;
-  verifySecurityAnswer: (answer: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -69,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Migration: Add fields if missing
           if (!parsedUser.familyCodeTimestamp) parsedUser.familyCodeTimestamp = Date.now();
           if (!parsedUser.alertHistory) parsedUser.alertHistory = [];
+          if (!parsedUser.securityQuestions) parsedUser.securityQuestions = [];
           
           setUser(parsedUser);
         }
@@ -89,9 +90,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return new Promise<void>((resolve, reject) => {
       setTimeout(() => {
         if (phone.length > 0 && pass.length > 0) {
-          // In real app: Server validates hash. Here we simulate retrieval.
           const storedProfile = localStorage.getItem('truthshield_profile_cache');
-          let isValid = true; // Simulating success for demo flow if no prev user
+          let isValid = true; 
           
           if (storedProfile) {
              const u = JSON.parse(storedProfile);
@@ -110,9 +110,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               hasVoiceProfile: false,
               emergencyContacts: [],
               alertHistory: [],
+              securityQuestions: [],
               passwordHash: simpleHash(pass)
             };
-            // Use existing if available to preserve data
             const finalUser = storedProfile ? JSON.parse(storedProfile) : mockUser;
             
             persistUser(finalUser);
@@ -140,6 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           hasVoiceProfile: false,
           emergencyContacts: [],
           alertHistory: [],
+          securityQuestions: [],
           passwordHash: simpleHash(pass)
         };
         persistUser(newUser);
@@ -152,8 +153,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null);
     localStorage.removeItem('truthshield_token');
-    // Note: In real app, we might keep profile cache for quick login, but here we clear it for demo clarity
-    // localStorage.removeItem('truthshield_profile_cache'); 
   };
 
   const generateFamilyCode = () => {
@@ -209,20 +208,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateSecurityQuestion = (question: string, answer: string) => {
+  const updateSecurityQuestions = (questions: string[]) => {
     if (user) {
         const updatedUser = { 
             ...user, 
-            securityQuestion: question, 
-            securityAnswerHash: simpleHash(answer) // Store hash
+            securityQuestions: questions,
         };
         persistUser(updatedUser);
     }
-  };
-
-  const verifySecurityAnswer = (answer: string): boolean => {
-      if (!user?.securityAnswerHash) return false;
-      return user.securityAnswerHash === simpleHash(answer);
   };
 
   const setVoiceProfileStatus = (status: boolean) => {
@@ -237,8 +230,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user, login, register, logout, isLoading,
       addEmergencyContact, removeEmergencyContact,
       addAlertToHistory, clearAlertHistory,
-      updateSecurityQuestion, setVoiceProfileStatus,
-      regenerateFamilyId, verifySecurityAnswer
+      updateSecurityQuestions, setVoiceProfileStatus,
+      regenerateFamilyId
     }}>
       {children}
     </AuthContext.Provider>

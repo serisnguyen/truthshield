@@ -1,6 +1,5 @@
-
 import React, { useEffect, useRef, useState } from 'react';
-import { ShieldCheck, Power, Activity, Smartphone, Newspaper, RefreshCw, ExternalLink, Eye, Lock, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Power, Activity, Smartphone, Newspaper, RefreshCw, ExternalLink, Eye, Lock, AlertTriangle, Camera, VideoOff } from 'lucide-react';
 
 interface HomeScreenProps {
   onTriggerAlert: () => void;
@@ -20,6 +19,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   // News State
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -32,13 +32,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
     let isMounted = true;
 
     const startSurveillance = async () => {
+      setCameraError(null);
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error("MediaDevices interface not available");
+            throw new Error("Trình duyệt không hỗ trợ Camera");
         }
 
         const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: 'user' },
+          video: { 
+            facingMode: 'user',
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          },
           audio: true 
         });
 
@@ -50,14 +55,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
         stream = mediaStream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          // Crucial for iOS/Mobile
+          videoRef.current.setAttribute('playsinline', 'true'); 
+          await videoRef.current.play().catch(e => console.error("Play error", e));
         }
         setCameraActive(true);
         setIsScanning(true);
-      } catch (err) {
+      } catch (err: any) {
         if (!isMounted) return;
-        console.warn("Access denied or camera unavailable. Switching to simulation mode.", err);
+        console.warn("Camera access error:", err);
+        
+        let errorMsg = "Không thể mở Camera.";
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            errorMsg = "Bạn đã từ chối quyền Camera.";
+        } else if (err.name === 'NotFoundError') {
+            errorMsg = "Không tìm thấy Camera.";
+        }
+        
+        setCameraError(errorMsg);
         setCameraActive(false);
-        setIsScanning(true);
+        setIsScanning(true); // Still show scanning UI but in simulation mode
       }
     };
 
@@ -92,25 +109,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
           title: "Cảnh báo chiêu trò lừa đảo giả danh Công an qua Video Call",
           source: "Báo Công An",
           date: "Vừa xong",
-          description: "Các đối tượng sử dụng Deepfake để giả mạo khuôn mặt và giọng nói của cán bộ công an nhằm yêu cầu chuyển tiền.",
-          url: "https://cand.com.vn/Canh-bao/canh-bao-thu-doan-lua-dao-gia-danh-cong-an-goi-video-call-i693245/"
+          description: "Các đối tượng sử dụng Deepfake để giả mạo khuôn mặt và giọng nói.",
+          url: "https://cand.com.vn/Canh-bao/"
         },
         {
           id: 2,
-          title: "Thủ đoạn mới: Giả mạo nhân viên ngân hàng nâng hạn mức thẻ tín dụng",
+          title: "Giả mạo nhân viên ngân hàng nâng hạn mức thẻ tín dụng",
           source: "VnExpress",
           date: "2 giờ trước",
-          description: "Tuyệt đối không cung cấp mã OTP cho bất kỳ ai tự xưng là nhân viên ngân hàng.",
-          url: "https://vnexpress.net/thu-doan-gia-mao-nhan-vien-ngan-hang-nang-han-muc-the-tin-dung-4740588.html"
+          description: "Tuyệt đối không cung cấp mã OTP cho bất kỳ ai.",
+          url: "https://vnexpress.net/phap-luat"
         },
-        {
-          id: 3,
-          title: "Lừa đảo 'Con đang cấp cứu' tái xuất hiện tại TP.HCM",
-          source: "Tuổi Trẻ",
-          date: "Hôm nay",
-          description: "Các phụ huynh cần bình tĩnh và xác minh thông tin trực tiếp với nhà trường hoặc bệnh viện.",
-          url: "https://tuoitre.vn/canh-bao-lua-dao-con-dang-cap-cuu-tai-xuat-hien-20240312112545678.htm"
-        }
       ];
       setNews(mockNews);
       setLoadingNews(false);
@@ -121,9 +130,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
     <div className="relative w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#F8FAFC]">
       
       {/* --- DISCLAIMER BANNER (DEMO MODE) --- */}
-      <div className="fixed top-16 left-0 right-0 md:top-0 md:left-20 lg:left-72 z-40 bg-amber-100 border-b border-amber-200 px-4 py-2 flex items-center justify-center gap-2 text-amber-800 text-xs font-bold shadow-sm">
-        <AlertTriangle size={14} />
-        <span>CHẾ ĐỘ MÔ PHỎNG: Đây là bản Demo giáo dục. Các tính năng AI Detection hiện tại là giả lập.</span>
+      <div className="fixed top-16 left-0 right-0 md:top-0 md:left-20 lg:left-72 z-40 bg-amber-100 border-b border-amber-200 px-4 py-2 flex items-center justify-center gap-2 text-amber-900 text-xs md:text-sm font-bold shadow-sm">
+        <AlertTriangle size={16} />
+        <span>CHẾ ĐỘ MÔ PHỎNG: Ứng dụng Demo giáo dục.</span>
       </div>
 
       {/* --- REAL-TIME CAMERA BACKGROUND --- */}
@@ -139,13 +148,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
                   className="w-full h-full object-cover"
                 />
              ) : (
-                <div className="w-full h-full bg-slate-100 flex items-center justify-center">
-                   <div className="text-slate-300 text-4xl md:text-6xl font-black tracking-tighter animate-pulse select-none">
-                      MÔ PHỎNG
+                <div className="w-full h-full bg-slate-200 flex flex-col items-center justify-center p-4">
+                   <VideoOff size={64} className="text-slate-400 mb-4" />
+                   <div className="text-slate-500 text-xl font-bold text-center">
+                      {cameraError || "CHẾ ĐỘ MÔ PHỎNG (CAMERA TẮT)"}
                    </div>
+                   <p className="text-slate-400 text-sm mt-2 max-w-xs text-center">
+                      Không thể truy cập camera. Ứng dụng đang chạy bằng dữ liệu giả lập.
+                   </p>
                 </div>
              )}
-             <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-transparent to-white/90"></div>
+             <div className="absolute inset-0 bg-gradient-to-b from-white/95 via-white/40 to-white/95"></div>
           </>
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-blue-50 to-white"></div>
@@ -153,100 +166,90 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
       </div>
 
       {/* --- MAIN UI LAYER --- */}
-      <div className="relative z-10 flex-1 flex flex-col p-6 pt-28 md:pt-14">
+      <div className="relative z-10 flex-1 flex flex-col p-4 md:p-6 pt-28 md:pt-20 pb-20">
         
         {/* Top Indicators (Active State) */}
         {permissionGranted && (
-          <div className="flex justify-between items-start animate-in fade-in duration-1000 bg-white/80 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200 mb-6">
-             <div className="flex items-center gap-2 text-green-600">
-                <span className="relative flex h-3 w-3">
+          <div className="flex justify-between items-center animate-in fade-in duration-1000 bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200 mb-6">
+             <div className="flex items-center gap-2 md:gap-3 text-green-700">
+                <span className="relative flex h-3 w-3 md:h-4 md:w-4">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 md:h-4 md:w-4 bg-green-600"></span>
                 </span>
-                <span className="text-sm font-bold uppercase">
-                  {cameraActive ? "Đang Quét Trực Tiếp" : "Chế Độ Mô Phỏng"}
+                <span className="text-sm md:text-base font-black uppercase tracking-wide">
+                  {cameraActive ? "Đang Quét" : "Mô Phỏng"}
                 </span>
              </div>
              <div className="flex flex-col items-end">
-                <span className="text-xs font-bold text-slate-600">ÂM THANH: {cameraActive ? "ĐANG NGHE..." : "GIẢ LẬP"}</span>
-                <span className="text-xs font-bold text-slate-600">VIDEO: {cameraActive ? "ĐANG PHÂN TÍCH..." : "GIẢ LẬP"}</span>
+                <span className="text-[10px] md:text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded">VIDEO: {cameraActive ? "OK" : "OFF"}</span>
              </div>
           </div>
         )}
 
         {/* CENTER INTERFACE */}
-        <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="flex-1 flex flex-col items-center justify-center">
           
           {permissionGranted ? (
             /* --- STATE: ACTIVE SCANNING --- */
             <div className="flex flex-col items-center w-full max-w-md">
                
-               <div className="relative w-64 h-64 flex items-center justify-center mb-10">
-                 <div className="absolute inset-0 border-4 border-blue-100 rounded-full animate-[spin_10s_linear_infinite]"></div>
-                 <div className="absolute inset-4 border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-[spin_4s_linear_infinite]"></div>
-                 <div className="absolute inset-0 rounded-full border-2 border-blue-200 scale-110 animate-pulse"></div>
+               <div className="relative w-64 h-64 md:w-72 md:h-72 flex items-center justify-center mb-8">
+                 <div className="absolute inset-0 border-8 border-blue-100 rounded-full animate-[spin_10s_linear_infinite]"></div>
+                 <div className="absolute inset-4 border-4 border-t-blue-600 border-r-transparent border-b-blue-600 border-l-transparent rounded-full animate-[spin_4s_linear_infinite]"></div>
                  
-                 <div className="text-center z-10 bg-white shadow-lg p-8 rounded-full border border-blue-100">
-                    <ShieldCheck className="w-16 h-16 text-green-500 mx-auto mb-2" />
-                    <div className="text-xl font-bold text-slate-800">AN TOÀN</div>
-                    <div className="text-xs font-bold text-slate-400">CHƯA PHÁT HIỆN LỪA ĐẢO</div>
+                 <div className="text-center z-10 bg-white shadow-xl p-6 rounded-full border-4 border-blue-50 w-48 h-48 md:w-56 md:h-56 flex flex-col items-center justify-center">
+                    <ShieldCheck className="w-16 h-16 md:w-20 md:h-20 text-green-600 mx-auto mb-2" />
+                    <div className="text-xl md:text-2xl font-black text-slate-800">AN TOÀN</div>
                  </div>
                </div>
 
-               <div className="w-full bg-white shadow-xl border border-slate-200 rounded-2xl p-6 space-y-4 animate-in slide-in-from-bottom-4">
-                  <div className="flex items-center justify-between text-sm text-slate-600 border-b border-slate-100 pb-4">
-                    <span className="flex items-center gap-2 font-medium"><Activity size={18} className="text-blue-500" /> Trạng thái hệ thống</span>
-                    <span className="text-green-600 font-bold">TỐT</span>
-                  </div>
-                  
+               <div className="w-full bg-white shadow-lg border border-slate-200 rounded-3xl p-4 space-y-4 animate-in slide-in-from-bottom-4">
                   <button 
                     onClick={onTriggerAlert}
-                    className="w-full py-4 bg-red-50 hover:bg-red-100 border-2 border-red-200 text-red-600 rounded-xl font-bold uppercase tracking-wide transition-all flex items-center justify-center gap-2 group shadow-sm"
+                    className="w-full h-16 md:h-20 bg-red-50 hover:bg-red-100 border-2 border-red-200 text-red-700 rounded-2xl font-bold text-lg md:text-xl uppercase tracking-wide transition-all flex items-center justify-center gap-3 group shadow-sm touch-target active:scale-95"
                   >
-                    <Smartphone size={20} className="group-hover:animate-shake" />
-                    Thử Nghiệm Cảnh Báo
+                    <Smartphone size={28} className="group-hover:animate-shake text-red-600" />
+                    Giả Lập Cảnh Báo
                   </button>
                </div>
 
                <button 
                  onClick={() => setPermissionGranted(false)}
-                 className="mt-6 px-6 py-2 bg-white border border-slate-300 text-slate-600 rounded-full text-sm font-medium hover:bg-slate-50 hover:text-slate-900 flex items-center gap-2 transition-colors shadow-sm"
+                 className="mt-6 px-6 py-3 bg-white border-2 border-slate-300 text-slate-600 rounded-full text-base font-bold hover:bg-slate-100 hover:text-slate-900 flex items-center gap-2 transition-colors shadow-sm"
                >
-                 <Power size={16} /> Tắt bảo vệ
+                 <Power size={20} /> Tắt bảo vệ
                </button>
             </div>
 
           ) : (
             /* --- STATE: INACTIVE / GRANT PERMISSION --- */
-            <div className="w-full max-w-md text-center space-y-8 px-4 animate-in zoom-in duration-500">
+            <div className="w-full max-w-md text-center space-y-8 px-2 animate-in zoom-in duration-500">
               
-              <div className="relative mx-auto w-48 h-48 flex items-center justify-center group cursor-pointer" onClick={() => setPermissionGranted(true)}>
-                 <div className="absolute inset-0 bg-blue-100 rounded-full blur-2xl group-hover:bg-blue-200 transition-all duration-500 opacity-70"></div>
-                 <div className="relative w-40 h-40 rounded-full bg-white border-8 border-slate-100 flex items-center justify-center shadow-xl group-hover:border-blue-100 transition-all duration-300 group-hover:scale-105">
-                    <Power className="w-16 h-16 text-slate-400 group-hover:text-blue-600 transition-colors duration-300" strokeWidth={2.5} />
+              <div className="relative mx-auto w-48 h-48 md:w-56 md:h-56 flex items-center justify-center group cursor-pointer" onClick={() => setPermissionGranted(true)}>
+                 <div className="absolute inset-0 bg-blue-100 rounded-full blur-3xl group-hover:bg-blue-200 transition-all duration-500 opacity-70"></div>
+                 <div className="relative w-40 h-40 md:w-48 md:h-48 rounded-full bg-white border-8 border-slate-100 flex items-center justify-center shadow-2xl group-hover:border-blue-200 transition-all duration-300 group-hover:scale-105 active:scale-95">
+                    <Power className="w-20 h-20 md:w-24 md:h-24 text-slate-300 group-hover:text-blue-600 transition-colors duration-300" strokeWidth={3} />
                  </div>
-                 <div className="absolute bottom-0 translate-y-10 text-base font-bold text-blue-600 bg-blue-50 px-4 py-1 rounded-full">
+                 <div className="absolute -bottom-4 bg-blue-600 text-white text-base md:text-lg font-bold px-6 py-2 rounded-full shadow-lg animate-bounce">
                    BẤM ĐỂ BẬT
                  </div>
               </div>
 
-              <div className="space-y-4 pt-6">
-                <h2 className="text-3xl font-extrabold text-slate-800">Kích Hoạt Bảo Vệ</h2>
-                <p className="text-slate-600 text-lg leading-relaxed">
-                  Cho phép ứng dụng sử dụng <span className="font-bold text-slate-900">Micro & Camera</span> để tự động phát hiện lừa đảo khi có cuộc gọi.
+              <div className="space-y-3">
+                <h2 className="text-3xl md:text-4xl font-black text-slate-800">Kích Hoạt Bảo Vệ</h2>
+                <p className="text-slate-600 text-lg leading-relaxed font-medium px-4">
+                  Bấm nút trên để bật "Khiên Xanh" bảo vệ gia đình.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <Lock className="w-6 h-6 text-green-500 mx-auto mb-2" />
-                    <div className="text-sm text-slate-900 font-bold">Bảo Mật 100%</div>
-                    <div className="text-xs text-slate-500 mt-1">Chỉ phân tích trên máy bạn</div>
+              <div className="grid grid-cols-2 gap-3">
+                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <Lock className="w-6 h-6 text-green-600 mx-auto mb-2" />
+                    <div className="text-sm md:text-base text-slate-900 font-bold">Riêng Tư</div>
                  </div>
-                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <Eye className="w-6 h-6 text-blue-500 mx-auto mb-2" />
-                    <div className="text-sm text-slate-900 font-bold">Tức Thì</div>
-                    <div className="text-xs text-slate-500 mt-1">Phát hiện ngay lập tức</div>
+                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <Eye className="w-6 h-6 text-blue-600 mx-auto mb-2" />
+                    <div className="text-sm md:text-base text-slate-900 font-bold">Tức Thì</div>
                  </div>
               </div>
             </div>
@@ -254,37 +257,37 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
         </div>
 
         {/* --- NEWS SECTION --- */}
-        <div className="w-full max-w-md mx-auto mt-12 mb-20">
+        <div className="w-full max-w-md mx-auto mt-10">
           {!showNews ? (
             <button 
               onClick={fetchNews}
-              className="w-full py-4 bg-white hover:bg-blue-50 border border-slate-200 text-blue-700 rounded-2xl font-bold shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2"
+              className="w-full h-14 bg-white hover:bg-blue-50 border border-slate-200 text-blue-700 rounded-2xl font-bold text-base shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
             >
               <Newspaper size={20} />
-              Cập nhật tin tức lừa đảo mới nhất
+              Xem tin tức lừa đảo
             </button>
           ) : (
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-10 fade-in duration-500">
+            <div className="bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-10 fade-in duration-500">
               <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                  <Newspaper size={18} className="text-blue-600" /> 
-                  Tin Tức Cảnh Báo
+                <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
+                  <Newspaper size={20} className="text-blue-600" /> 
+                  Tin Tức
                 </h3>
                 <button 
                   onClick={fetchNews}
                   className="p-2 hover:bg-white rounded-full transition-colors" 
                   disabled={loadingNews}
                 >
-                  <RefreshCw size={16} className={`text-slate-500 ${loadingNews ? 'animate-spin' : ''}`} />
+                  <RefreshCw size={18} className={`text-slate-600 ${loadingNews ? 'animate-spin' : ''}`} />
                 </button>
               </div>
               
               <div className="p-4 space-y-4 max-h-80 overflow-y-auto">
                 {loadingNews ? (
                   <div className="space-y-4">
-                    {[1, 2, 3].map((i) => (
+                    {[1, 2].map((i) => (
                       <div key={i} className="animate-pulse">
-                        <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
+                        <div className="h-5 bg-slate-200 rounded w-3/4 mb-2"></div>
                         <div className="h-3 bg-slate-200 rounded w-full mb-1"></div>
                         <div className="h-3 bg-slate-200 rounded w-2/3"></div>
                       </div>
@@ -294,19 +297,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
                   news.map((item) => (
                     <div key={item.id} className="group pb-4 border-b border-slate-100 last:border-0 last:pb-0">
                       <div className="flex justify-between items-start mb-1">
-                        <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{item.source}</span>
-                        <span className="text-xs text-slate-400">{item.date}</span>
+                        <span className="text-[10px] font-bold text-white bg-blue-600 px-2 py-0.5 rounded-full">{item.source}</span>
+                        <span className="text-[10px] text-slate-500 font-medium">{item.date}</span>
                       </div>
                       <a 
                         href={item.url} 
                         target="_blank" 
                         rel="noopener noreferrer" 
-                        className="font-bold text-slate-800 text-sm mb-1 group-hover:text-blue-600 transition-colors flex items-start gap-1 cursor-pointer hover:underline"
+                        className="block font-bold text-slate-900 text-base mb-1 group-hover:text-blue-700 transition-colors leading-snug"
                       >
                         {item.title}
-                        <ExternalLink size={14} className="flex-shrink-0 mt-0.5 text-slate-400 group-hover:text-blue-500" />
+                        <ExternalLink size={14} className="inline-block ml-1 text-slate-400" />
                       </a>
-                      <p className="text-xs text-slate-500 leading-relaxed">
+                      <p className="text-xs text-slate-600 leading-relaxed font-medium">
                         {item.description}
                       </p>
                     </div>

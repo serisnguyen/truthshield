@@ -154,63 +154,63 @@ const AppContent: React.FC = () => {
       <main className="flex-1 relative flex flex-col h-screen overflow-hidden bg-[#F8FAFC]">
         
         {/* Mobile Header */}
-        <div className="md:hidden h-16 flex items-center justify-between px-4 bg-white border-b border-slate-200 absolute top-0 left-0 right-0 z-20 shadow-sm">
+        <div className="md:hidden h-16 flex items-center justify-between px-4 bg-white/90 backdrop-blur-sm border-b border-slate-200 absolute top-0 left-0 right-0 z-20 shadow-sm">
            <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-1.5 rounded-lg">
+              <div className="bg-blue-600 p-1.5 rounded-lg shadow-sm">
                 <Shield className="w-5 h-5 text-white" fill="currentColor" />
               </div>
-              <span className="text-lg font-bold text-slate-800">TruthShield</span>
+              <span className="text-lg font-bold text-slate-800 tracking-tight">TruthShield</span>
            </div>
            <button 
             onClick={() => setShowTutorial(true)}
-            className="px-3 py-1.5 bg-slate-100 rounded-full border border-slate-200 flex items-center gap-2 text-sm font-medium text-slate-600 active:bg-slate-200 transition-all"
+            className="px-3 py-2 bg-slate-100 rounded-full border border-slate-200 flex items-center gap-2 text-sm font-semibold text-slate-600 active:bg-slate-200 transition-all active:scale-95"
            >
-              <PlayCircle size={16} className="text-blue-600" /> Hướng dẫn
+              <PlayCircle size={18} className="text-blue-600" /> Hướng dẫn
            </button>
         </div>
 
         {/* Content Wrapper */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar relative pb-24 md:pb-0">
+        <div className="flex-1 overflow-y-auto custom-scrollbar relative pb-28 md:pb-0">
           <Suspense fallback={<LoadingFallback />}>
             {renderContent()}
           </Suspense>
         </div>
 
         {/* Mobile Bottom Dock (Floating) */}
-        <div className="md:hidden absolute bottom-6 left-4 right-4 z-30">
-          <div className="bg-white/90 backdrop-blur-xl border border-slate-200 rounded-3xl px-2 py-3 shadow-xl shadow-slate-200 flex justify-between items-center">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 p-4 bg-gradient-to-t from-[#F8FAFC] via-[#F8FAFC] to-transparent pb-6">
+          <div className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-2xl px-2 py-2 shadow-xl shadow-slate-200/50 flex justify-between items-center">
             <NavButton 
-              icon={<ScanFace size={24} />} 
+              icon={<ScanFace size={26} />} 
               label="Quét" 
               isActive={activeTab === 'home'} 
               onClick={() => setActiveTab('home')} 
             />
             <NavButton 
-              icon={<Bot size={24} />} 
+              icon={<Bot size={26} />} 
               label="Hỏi Đáp" 
               isActive={activeTab === 'chat'} 
               onClick={() => setActiveTab('chat')} 
             />
             <NavButton 
-              icon={<Users size={24} />} 
+              icon={<Users size={26} />} 
               label="Gia Đình" 
               isActive={activeTab === 'family'} 
               onClick={() => setActiveTab('family')} 
             />
             <NavButton 
-              icon={<MessageSquareText size={24} />} 
+              icon={<MessageSquareText size={26} />} 
               label="Tin Nhắn" 
               isActive={activeTab === 'message'} 
               onClick={() => setActiveTab('message')} 
             />
             <NavButton 
-              icon={<BookOpen size={24} />} 
+              icon={<BookOpen size={26} />} 
               label="Thư Viện" 
               isActive={activeTab === 'library'} 
               onClick={() => setActiveTab('library')} 
             />
             <NavButton 
-              icon={<UserCircle size={24} />} 
+              icon={<UserCircle size={26} />} 
               label="Cá Nhân" 
               isActive={activeTab === 'profile'} 
               onClick={() => setActiveTab('profile')} 
@@ -247,16 +247,16 @@ interface NavButtonProps {
 const NavButton: React.FC<NavButtonProps> = ({ icon, label, isActive, onClick }) => (
   <button 
     onClick={onClick}
-    className={`relative flex-1 flex flex-col items-center justify-center py-1 rounded-2xl transition-all duration-300 ${
+    className={`relative flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all duration-300 active:scale-90 ${
       isActive ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
     }`}
   >
-    <div className={`transition-transform duration-300 p-2 rounded-xl ${
-      isActive ? 'bg-blue-50 -translate-y-2 scale-110 shadow-md shadow-blue-100' : ''
+    <div className={`transition-transform duration-300 p-1.5 rounded-xl ${
+      isActive ? 'bg-blue-50 -translate-y-1 scale-105 shadow-sm' : ''
     }`}>
       {icon}
     </div>
-    <span className={`text-[11px] font-bold mt-1 transition-opacity duration-300 ${isActive ? 'opacity-100 text-blue-700' : 'opacity-0 h-0 overflow-hidden'}`}>
+    <span className={`text-[10px] font-bold mt-0.5 transition-opacity duration-300 ${isActive ? 'opacity-100 text-blue-700' : 'opacity-60'}`}>
       {label}
     </span>
   </button>

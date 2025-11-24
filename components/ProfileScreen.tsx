@@ -1,9 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, Settings, LogOut, Bell, Shield, 
   ChevronRight, Smartphone, Lock, CreditCard, 
-  Eye, EyeOff, Loader2, KeyRound, Mic, FileText, X, CheckCircle2, Server
+  Eye, EyeOff, Loader2, KeyRound, Mic, FileText, X, CheckCircle2, Server, Save
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import VoiceSetupModal from './VoiceSetupModal';
@@ -13,7 +13,7 @@ interface ProfileScreenProps {
 }
 
 const ProfileScreen: React.FC<ProfileScreenProps> = () => {
-  const { user, login, register, logout, updateSecurityQuestion } = useAuth();
+  const { user, login, register, logout, updateSecurityQuestions } = useAuth();
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,10 +27,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
 
-  // Security Question
+  // Security Questions (3 Questions)
   const [editingSecurity, setEditingSecurity] = useState(false);
-  const [secQuestion, setSecQuestion] = useState('');
-  const [secAnswer, setSecAnswer] = useState('');
+  const [q1, setQ1] = useState('');
+  const [q2, setQ2] = useState('');
+  const [q3, setQ3] = useState('');
+
+  useEffect(() => {
+    if (user?.securityQuestions && user.securityQuestions.length >= 1) {
+        setQ1(user.securityQuestions[0] || '');
+        setQ2(user.securityQuestions[1] || '');
+        setQ3(user.securityQuestions[2] || '');
+    }
+  }, [user]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,11 +59,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     }
   };
 
-  const saveSecurityQuestion = () => {
-    if (secQuestion && secAnswer) {
-        updateSecurityQuestion(secQuestion, secAnswer);
+  const saveSecurityQuestions = () => {
+    const questions = [q1, q2, q3].filter(q => q.trim() !== '');
+    if (questions.length > 0) {
+        updateSecurityQuestions(questions);
         setEditingSecurity(false);
-        alert("Đã lưu câu hỏi bí mật!");
+        alert("Đã lưu bộ câu hỏi xác thực!");
+    } else {
+        alert("Vui lòng nhập ít nhất 1 câu hỏi.");
     }
   };
 
@@ -208,25 +220,43 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
 
               <div className="border-t border-slate-100"></div>
 
-              {/* Security Question */}
+              {/* Security Questions (3 Questions) */}
               {editingSecurity ? (
-                  <div className="p-4 bg-slate-50">
-                      <h4 className="font-bold text-sm mb-2 text-slate-700">Thiết lập câu hỏi bí mật</h4>
-                      <input 
-                        className="w-full p-2 border border-slate-300 rounded mb-2 text-sm"
-                        placeholder="Câu hỏi (VD: Tên cún cưng?)"
-                        value={secQuestion}
-                        onChange={e => setSecQuestion(e.target.value)}
-                      />
-                      <input 
-                        className="w-full p-2 border border-slate-300 rounded mb-2 text-sm"
-                        placeholder="Câu trả lời (Bí mật)"
-                        value={secAnswer}
-                        onChange={e => setSecAnswer(e.target.value)}
-                      />
-                      <div className="flex gap-2 justify-end">
-                          <button onClick={() => setEditingSecurity(false)} className="text-sm text-slate-500">Hủy</button>
-                          <button onClick={saveSecurityQuestion} className="text-sm bg-blue-600 text-white px-3 py-1 rounded">Lưu</button>
+                  <div className="p-5 bg-blue-50 border-l-4 border-blue-500">
+                      <div className="flex items-center gap-2 mb-4">
+                          <KeyRound size={20} className="text-blue-600" />
+                          <h4 className="font-bold text-slate-800">Bộ Câu Hỏi Xác Thực</h4>
+                      </div>
+                      <p className="text-xs text-slate-600 mb-4">
+                          Hãy đặt 3 câu hỏi mà chỉ người thân thật sự mới biết câu trả lời.
+                      </p>
+                      
+                      <div className="space-y-3">
+                          <input 
+                            className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="Câu hỏi 1: (VD: Hôm qua ăn cơm món gì?)"
+                            value={q1}
+                            onChange={e => setQ1(e.target.value)}
+                          />
+                          <input 
+                            className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="Câu hỏi 2: (VD: Con chó nhà mình tên gì?)"
+                            value={q2}
+                            onChange={e => setQ2(e.target.value)}
+                          />
+                          <input 
+                            className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="Câu hỏi 3: (VD: Sinh nhật mẹ ngày mấy?)"
+                            value={q3}
+                            onChange={e => setQ3(e.target.value)}
+                          />
+                      </div>
+
+                      <div className="flex gap-3 justify-end mt-4">
+                          <button onClick={() => setEditingSecurity(false)} className="px-4 py-2 bg-white text-slate-600 font-bold rounded-lg border border-slate-300">Hủy</button>
+                          <button onClick={saveSecurityQuestions} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg flex items-center gap-2 shadow-sm">
+                              <Save size={16} /> Lưu Lại
+                          </button>
                       </div>
                   </div>
               ) : (
@@ -236,10 +266,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
                 >
                     <div className="flex items-center gap-3">
                         <div className="text-blue-600"><KeyRound size={20} /></div>
-                        <span className="text-slate-700 font-medium">Câu hỏi bí mật gia đình</span>
+                        <div className="flex flex-col">
+                            <span className="text-slate-700 font-medium">Câu hỏi bí mật gia đình</span>
+                            <span className="text-xs text-slate-400">Dùng để kiểm tra khi có Deepfake</span>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-sm text-slate-400">{user.securityQuestion ? 'Đã đặt' : 'Chưa đặt'}</span>
+                        <span className={`text-xs font-bold px-2 py-1 rounded ${user.securityQuestions && user.securityQuestions.length > 0 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {user.securityQuestions && user.securityQuestions.length > 0 ? `${user.securityQuestions.length} câu` : 'Chưa đặt'}
+                        </span>
                         <ChevronRight size={16} className="text-slate-300" />
                     </div>
                 </div>
@@ -277,7 +312,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
                 onClick={() => setShowHistory(true)}
               /> 
               <div className="border-t border-slate-100"></div>
-              <SettingItem icon={<Settings size={20} />} label="Phiên bản" value="1.0.3 (Secure)" />
+              <SettingItem icon={<Settings size={20} />} label="Phiên bản" value="1.0.4 (Demo)" />
             </div>
           </section>
 

@@ -19,6 +19,11 @@ export const sanitizeInput = (input: string): string => {
   return input.replace(/<[^>]*>/g, "");
 };
 
+// Helper to create a timeout promise
+const timeoutPromise = (ms: number) => new Promise((_, reject) => {
+    setTimeout(() => reject(new Error("AI_TIMEOUT")), ms);
+});
+
 /**
  * Analyzes text for scam indicators using Gemini with Prompt Defense.
  * Includes a regex fallback if the API fails.
@@ -36,14 +41,14 @@ export const analyzeMessageRisk = async (message: string): Promise<{
   try {
     const ai = getAIClient();
     
-    // Prompt Defense: Wrapping user input in XML tags to separate instructions from data
+    // Prompt Defense: Wrapping user input in XML tags
     const prompt = `
       System: You are a cybersecurity expert analyzing Vietnamese text messages for scams.
-      Task: Analyze the content inside <user_content> tags.
+      Task: Analyze the content inside <user_content> tags. Keep explanation under 20 words.
       
       Classify as:
-      - SCAM: Clear signs of fraud (money request, fake authority, phishing).
-      - SUSPICIOUS: Unusual requests, urgency, unverified links.
+      - SCAM: Clear signs of fraud.
+      - SUSPICIOUS: Unusual requests, urgency.
       - SAFE: Normal conversation.
 
       Output Format: "CLASSIFICATION | Short explanation for elderly person"
@@ -53,22 +58,34 @@ export const analyzeMessageRisk = async (message: string): Promise<{
       </user_content>
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [{ role: "user", parts: [{ text: prompt }] }]
-    });
+    // Race between API call and 8-second timeout
+    const response: any = await Promise.race([
+        ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: [{ role: "user", parts: [{ text: prompt }] }]
+        }),
+        timeoutPromise(8000) 
+    ]);
 
     const text = response.text || "";
     const [classification, explanation] = text.split('|');
     
     let result: 'safe' | 'suspicious' | 'scam' = 'safe';
-    if (classification.trim().includes('SCAM')) result = 'scam';
-    else if (classification.trim().includes('SUSPICIOUS')) result = 'suspicious';
+    if (classification?.trim().includes('SCAM')) result = 'scam';
+    else if (classification?.trim().includes('SUSPICIOUS')) result = 'suspicious';
 
     return { result, explanation: explanation?.trim() || "Cần cảnh giác." };
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("AI Service Error:", error);
+    
+    // Handle Timeout specifically
+    if (error.message === "AI_TIMEOUT") {
+        return {
+            result: 'suspicious',
+            explanation: "Mạng chậm. Hệ thống chưa thể xác minh kỹ, hãy gọi điện lại cho người gửi."
+        };
+    }
     
     // 2. Fallback Logic execution
     if (scamKeywords.test(cleanInput) && urgentKeywords.test(cleanInput)) {
