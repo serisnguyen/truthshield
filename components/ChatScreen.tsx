@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, ShieldAlert, Loader2 } from 'lucide-react';
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
@@ -32,26 +33,30 @@ const ChatScreen: React.FC = () => {
   useEffect(() => {
     const initChat = () => {
       try {
-          const apiKey = process.env.API_KEY;
-          if (!apiKey) throw new Error("API Key missing");
-
-          const ai = new GoogleGenAI({ apiKey });
-          const userName = user ? user.name : "Bác/Cô/Chú";
+          // Fallback if no key provided in environment
+          const apiKey = process.env.API_KEY || "";
           
-          chatSessionRef.current = ai.chats.create({
-              model: "gemini-2.5-flash",
-              config: {
-                  systemInstruction: `Bạn là trợ lý an ninh TruthShield. Tên người dùng: ${userName}.
-                  Hãy trả lời ngắn gọn, dễ hiểu cho người cao tuổi.
-                  Nhiệm vụ: Phân tích lừa đảo, đưa ra lời khuyên bảo mật.`,
-              },
-          });
+          if (apiKey) {
+            const ai = new GoogleGenAI({ apiKey });
+            const userName = user ? user.name : "Bác/Cô/Chú";
+            
+            chatSessionRef.current = ai.chats.create({
+                model: "gemini-2.5-flash",
+                config: {
+                    systemInstruction: `Bạn là trợ lý an ninh TruthShield. Tên người dùng: ${userName}.
+                    Hãy trả lời ngắn gọn, dễ hiểu cho người cao tuổi.
+                    Nhiệm vụ: Phân tích lừa đảo, đưa ra lời khuyên bảo mật.`,
+                },
+            });
+          } else {
+            console.warn("Chat initialized in offline mode (No API Key)");
+          }
 
           // Set initial greeting
           setMessages([{ 
             id: 'init', 
             role: 'model', 
-            text: `Xin chào ${userName}! Cháu là trợ lý an ninh. Bác có tin nhắn hay cuộc gọi lạ nào cần kiểm tra không ạ?`,
+            text: `Xin chào ${user ? user.name : "Bác"}! Cháu là trợ lý an ninh. Bác có tin nhắn hay cuộc gọi lạ nào cần kiểm tra không ạ?`,
             isWarning: false
           }]);
 
@@ -67,6 +72,11 @@ const ChatScreen: React.FC = () => {
     };
 
     initChat();
+
+    // Cleanup function
+    return () => {
+        chatSessionRef.current = null;
+    };
   }, [user]);
 
   const handleSend = async (textInput?: string) => {
@@ -82,7 +92,19 @@ const ChatScreen: React.FC = () => {
     setIsLoading(true);
 
     try {
-      if (!chatSessionRef.current) throw new Error("Chat session not active");
+      if (!chatSessionRef.current) {
+         // Simulate response if no API key / session
+         setTimeout(() => {
+             setMessages(prev => [...prev, {
+                 id: 'mock-' + Date.now(),
+                 role: 'model',
+                 text: "Chế độ Offline: Cháu chưa kết nối được với máy chủ. Nhưng nếu bác thấy tin nhắn yêu cầu chuyển tiền, hãy gọi điện trực tiếp cho người thân để kiểm tra nhé!",
+                 isWarning: true
+             }]);
+             setIsLoading(false);
+         }, 1000);
+         return;
+      }
 
       const modelMsgId = (Date.now() + 1).toString();
       setMessages(prev => [...prev, { 
@@ -92,8 +114,6 @@ const ChatScreen: React.FC = () => {
         isStreaming: true 
       }]);
 
-      // Streaming response logic with timeout fallback could be added here
-      // But keeping simple for mobile update focus
       const result = await chatSessionRef.current.sendMessageStream({
         message: safeText
       });

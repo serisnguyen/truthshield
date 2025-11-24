@@ -305,15 +305,15 @@ const FamilyScreen: React.FC = () => {
                     <input 
                         type="text" placeholder="Tên (VD: Con trai)" 
                         value={newContactName} onChange={e => setNewContactName(e.target.value)}
-                        className="p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none w-full text-base" required
+                        className="p-4 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 outline-none w-full text-lg font-medium" required
                     />
                     <input 
                         type="tel" placeholder="Số điện thoại" 
                         value={newContactPhone} onChange={e => setNewContactPhone(e.target.value)}
-                        className="p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none w-full text-base" required
+                        className="p-4 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 outline-none w-full text-lg font-medium" required
                     />
                 </div>
-                <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-md hover:bg-blue-700 transition-colors active:scale-95">Lưu liên hệ</button>
+                <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-md hover:bg-blue-700 transition-colors active:scale-95 text-lg">Lưu liên hệ</button>
             </form>
          )}
 

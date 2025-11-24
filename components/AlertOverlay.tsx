@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PhoneOff, ShieldAlert, HelpCircle, AlertTriangle, Lock, BrainCircuit, LocateFixed, Send, MessageSquareWarning } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -12,6 +12,9 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
   const [riskScore, setRiskScore] = useState(0);
   const [challengeQuestion, setChallengeQuestion] = useState("");
   const [autoSMSStatus, setAutoSMSStatus] = useState<'sending' | 'sent' | 'idle'>('idle');
+  
+  // Ref to track if SMS has been triggered in this session to prevent duplicate sends
+  const smsTriggeredRef = useRef(false);
 
   // Default challenges if user hasn't set one
   const defaultChallenges = [
@@ -34,15 +37,21 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
     // 2. Risk Score Animation
     const targetScore = Math.floor(Math.random() * (99 - 88 + 1) + 88);
     let current = 0;
+    
     const interval = setInterval(() => {
       current += 2;
+      
+      // Check if we reached target
       if (current >= targetScore) {
         current = targetScore;
         clearInterval(interval);
         
         // 3. Trigger Auto-SMS when risk is high (Simulated)
-        if (targetScore > 80) {
+        // Only trigger if not already triggered
+        if (targetScore > 80 && !smsTriggeredRef.current) {
+            smsTriggeredRef.current = true;
             setAutoSMSStatus('sending');
+            
             setTimeout(() => {
                 setAutoSMSStatus('sent');
                 console.log("Auto SMS sent to emergency contacts");
@@ -53,7 +62,7 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
     }, 20);
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user]); // Depend on user to refresh questions if user changes
 
   const handleAction = (action: 'dismiss' | 'block') => {
     addAlertToHistory({
@@ -67,7 +76,8 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
   return (
     <div className="fixed inset-0 z-[100] bg-red-600/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
       
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-[shake_0.5s_ease-in-out_infinite] border-8 border-red-600">
+      {/* Removed infinite shake animation for better accessibility/UX */}
+      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in duration-300 border-8 border-red-600">
         
         {/* Header - High Contrast */}
         <div className="bg-red-600 p-8 text-center border-b-4 border-red-800 relative overflow-hidden">

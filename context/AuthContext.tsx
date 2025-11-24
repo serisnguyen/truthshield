@@ -90,19 +90,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return new Promise<void>((resolve, reject) => {
       setTimeout(() => {
         if (phone.length > 0 && pass.length > 0) {
-          const storedProfile = localStorage.getItem('truthshield_profile_cache');
-          let isValid = true; 
           
+          // Simplified Logic for Simulation Consistency:
+          // Always verify against what's stored, OR create new if not found.
+          // If phone matches but pass wrong -> reject.
+          // If phone different -> overwrite (it's a demo device).
+          
+          const storedProfile = localStorage.getItem('truthshield_profile_cache');
+          let finalUser: User | null = null;
+
           if (storedProfile) {
              const u = JSON.parse(storedProfile);
-             if (u.phone === phone && u.passwordHash && u.passwordHash !== simpleHash(pass)) {
-                 isValid = false;
+             if (u.phone === phone) {
+                 // Verify password
+                 if (u.passwordHash && u.passwordHash !== simpleHash(pass)) {
+                     reject("Mật khẩu không đúng");
+                     return;
+                 }
+                 finalUser = u;
              }
           }
 
-          if (isValid) {
-            const mockUser: User = {
-              name: "Nguyễn Văn A", 
+          if (!finalUser) {
+            // Create new mock user for this phone number (fresh session)
+            finalUser = {
+              name: "Nguyễn Văn A", // Default demo name
               phone: phone,
               id: Date.now().toString(),
               familyId: generateFamilyCode(),
@@ -113,14 +125,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               securityQuestions: [],
               passwordHash: simpleHash(pass)
             };
-            const finalUser = storedProfile ? JSON.parse(storedProfile) : mockUser;
-            
-            persistUser(finalUser);
-            localStorage.setItem('truthshield_token', 'mock_jwt_' + Date.now());
-            resolve();
-          } else {
-            reject("Mật khẩu không đúng");
           }
+            
+          persistUser(finalUser);
+          localStorage.setItem('truthshield_token', 'mock_jwt_' + Date.now());
+          resolve();
+          
         } else {
           reject("Thông tin đăng nhập không hợp lệ");
         }

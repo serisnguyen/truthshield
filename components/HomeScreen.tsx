@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import { ShieldCheck, Power, Activity, Smartphone, Newspaper, RefreshCw, ExternalLink, Eye, Lock, AlertTriangle, Camera, VideoOff } from 'lucide-react';
 
@@ -166,7 +167,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert }) => {
       </div>
 
       {/* --- MAIN UI LAYER --- */}
-      <div className="relative z-10 flex-1 flex flex-col p-4 md:p-6 pt-28 md:pt-20 pb-20">
+      {/* Increased pt from pt-36 to pt-44 to prevent overlap with simulation banner on mobile */}
+      <div className="relative z-10 flex-1 flex flex-col p-4 md:p-6 pt-44 md:pt-24 pb-20">
         
         {/* Top Indicators (Active State) */}
         {permissionGranted && (
