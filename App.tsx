@@ -9,6 +9,7 @@ import TutorialModal from './components/TutorialModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import RoleSelectionScreen from './components/RoleSelectionScreen';
 import SOSReceiveModal from './components/SOSReceiveModal';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy Load Components
 const HomeScreen = lazy(() => import('./components/HomeScreen'));
@@ -29,13 +30,38 @@ const LoadingFallback = () => (
 );
 
 const NetworkStatus = () => {
-    const { isOnline, isSeniorMode } = useAuth();
+    const { isOnline, isSeniorMode, lastOnlineTime } = useAuth();
+    const [offlineDuration, setOfflineDuration] = useState(0);
+
+    useEffect(() => {
+      if (!isOnline) {
+        const interval = setInterval(() => {
+          setOfflineDuration(Math.floor((Date.now() - lastOnlineTime) / 1000));
+        }, 1000);
+        return () => clearInterval(interval);
+      } else {
+        setOfflineDuration(0);
+      }
+    }, [isOnline, lastOnlineTime]);
+
     if (isOnline) return null;
     
+    const formatDuration = (seconds: number) => {
+      if (seconds < 60) return `${seconds}s`;
+      const mins = Math.floor(seconds / 60);
+      return `${mins} phút`;
+    };
+    
     return (
-        <div className={`fixed top-0 left-0 right-0 z-[60] bg-red-600 text-white flex items-center justify-center gap-2 shadow-md animate-in slide-in-from-top duration-300 ${isSeniorMode ? 'h-12 text-lg' : 'h-8 text-xs font-bold'}`}>
-            <WifiOff size={isSeniorMode ? 24 : 14} />
-            <span>Mất kết nối Internet. Vui lòng kiểm tra đường truyền.</span>
+        <div className={`fixed top-0 left-0 right-0 z-[60] bg-red-600 text-white flex items-center justify-center gap-2 shadow-md animate-in slide-in-from-top duration-300 ${isSeniorMode ? 'h-14 text-lg' : 'h-10 text-sm font-bold'}`}>
+            <WifiOff size={isSeniorMode ? 24 : 16} className="animate-pulse" />
+            <span>Mất kết nối {formatDuration(offlineDuration)}</span>
+            <button 
+                onClick={() => window.location.reload()}
+                className="ml-2 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-xs font-bold"
+            >
+                Thử lại
+            </button>
         </div>
     );
 };
@@ -230,9 +256,11 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

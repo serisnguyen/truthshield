@@ -40,6 +40,7 @@ interface AuthContextType {
   updateSOSMessage: (message: string) => void;
   updateCallHistoryItem: (callId: string, analysis: CallLogItem['aiAnalysis']) => void;
   isOnline: boolean;
+  lastOnlineTime: number;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -56,7 +57,7 @@ const simpleHash = (str: string): string => {
   }
 };
 
-// Mock Call History Data
+// Mock Call History Data (Same as before)
 const mockCallHistory: CallLogItem[] = [
   { 
     id: '1', 
@@ -123,10 +124,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isSeniorMode, setIsSeniorMode] = useState(false);
   const [incomingSOS, setIncomingSOS] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [lastOnlineTime, setLastOnlineTime] = useState(Date.now());
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOnline = () => {
+        setIsOnline(true);
+        setLastOnlineTime(Date.now());
+    };
+    const handleOffline = () => {
+        setIsOnline(false);
+        setLastOnlineTime(Date.now());
+    };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
@@ -299,7 +307,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       incomingSOS, setIncomingSOS,
       ...userActions,
       regenerateFamilyId: () => userActions.regenerateFamilyId(generateFamilyCode),
-      isOnline
+      isOnline,
+      lastOnlineTime
     }}>
       {children}
     </AuthContext.Provider>

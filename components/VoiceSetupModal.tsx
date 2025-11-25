@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
-import { X, Mic, CheckCircle, Activity, Fingerprint, Users, User, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Mic, CheckCircle, Activity, Fingerprint, Users, User, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { saveVoiceProfile } from '../services/storageService';
 
 interface VoiceSetupModalProps {
   onClose: () => void;
@@ -16,12 +17,18 @@ const VoiceSetupModal: React.FC<VoiceSetupModalProps> = ({ onClose, initialTab =
   const [step, setStep] = useState<'intro' | 'details' | 'recording' | 'processing' | 'finished'>('intro');
   const [recordingTime, setRecordingTime] = useState(0);
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Form state for Family
   const [famName, setFamName] = useState('');
   const [famRel, setFamRel] = useState('');
 
-  const RECORDING_DURATION = 30; // 30 seconds
+  // Audio Recording Refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const RECORDING_DURATION = 15; // Reduced to 15s for better UX
 
   // Prompts for Self
   const promptsSelf = [
@@ -50,11 +57,11 @@ const VoiceSetupModal: React.FC<VoiceSetupModalProps> = ({ onClose, initialTab =
             setRecordingTime(prev => {
                 if (prev >= RECORDING_DURATION) { 
                     clearInterval(interval);
-                    setStep('processing');
+                    stopRecording(); // Trigger stop
                     return RECORDING_DURATION;
                 }
-                // Change prompt every 6 seconds
-                if (prev % 6 === 0 && prev > 0) {
+                // Change prompt every 5 seconds
+                if (prev % 5 === 0 && prev > 0) {
                     setCurrentPromptIndex(i => (i + 1) % currentPrompts.length);
                 }
                 return prev + 1;
@@ -64,32 +71,83 @@ const VoiceSetupModal: React.FC<VoiceSetupModalProps> = ({ onClose, initialTab =
     return () => clearInterval(interval);
   }, [step, currentPrompts]);
 
-  useEffect(() => {
-      if (step === 'processing') {
-          const timeout = setTimeout(() => {
-              if (activeTab === 'self') {
-                  setVoiceProfileStatus(true);
-              } else {
-                  addFamilyVoiceProfile({
-                      name: famName,
-                      relationship: famRel
-                  });
-              }
-              setStep('finished');
-          }, 3000); 
-          return () => clearTimeout(timeout);
-      }
-  }, [step, activeTab, famName, famRel, setVoiceProfileStatus, addFamilyVoiceProfile]);
-
-  const startRecording = () => {
+  const startRecording = async () => {
     if (activeTab === 'family') {
         if (!famName || !famRel) {
             alert("Vui lòng nhập tên và mối quan hệ trước.");
             return;
         }
     }
-    setStep('recording');
-    setRecordingTime(0);
+    setErrorMessage(null);
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+            } 
+        });
+        
+        streamRef.current = stream;
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                audioChunksRef.current.push(event.data);
+            }
+        };
+
+        mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            
+            // Save to IndexedDB
+            const audioId = activeTab === 'self' 
+                ? 'voice_profile_self' 
+                : `voice_${Date.now()}`;
+            
+            try {
+                await saveVoiceProfile(audioId, audioBlob);
+                
+                // Simulate processing delay then finish
+                setTimeout(() => {
+                    if (activeTab === 'self') {
+                        setVoiceProfileStatus(true);
+                    } else {
+                        addFamilyVoiceProfile({
+                            name: famName,
+                            relationship: famRel,
+                            audioId: audioId
+                        });
+                    }
+                    setStep('finished');
+                }, 2000);
+            } catch (err) {
+                console.error("Storage error", err);
+                setErrorMessage("Lỗi khi lưu dữ liệu. Vui lòng thử lại.");
+                setStep('intro');
+            }
+            
+            // Cleanup tracks
+            stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        setStep('recording');
+        setRecordingTime(0);
+
+    } catch (err) {
+        console.error("Microphone access error:", err);
+        setErrorMessage("Vui lòng cấp quyền Microphone để ghi âm.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+        setStep('processing');
+    }
   };
 
   const handleTabChange = (tab: 'self' | 'family') => {
@@ -97,7 +155,17 @@ const VoiceSetupModal: React.FC<VoiceSetupModalProps> = ({ onClose, initialTab =
       setStep('intro');
       setRecordingTime(0);
       setCurrentPromptIndex(0);
+      setErrorMessage(null);
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+      return () => {
+          if (streamRef.current) {
+              streamRef.current.getTracks().forEach(t => t.stop());
+          }
+      };
+  }, []);
 
   return (
     <div className="fixed inset-0 z-[90] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-in zoom-in duration-300">
@@ -105,6 +173,13 @@ const VoiceSetupModal: React.FC<VoiceSetupModalProps> = ({ onClose, initialTab =
         <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-800 z-10">
            <X size={24} />
         </button>
+
+        {/* ERROR MESSAGE */}
+        {errorMessage && (
+            <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-xl text-sm font-bold mb-4 flex items-center gap-2">
+                <RefreshCw size={16} /> {errorMessage}
+            </div>
+        )}
 
         {/* TABS */}
         {step === 'intro' && (
@@ -135,13 +210,13 @@ const VoiceSetupModal: React.FC<VoiceSetupModalProps> = ({ onClose, initialTab =
                         </div>
                         <h2 className="text-2xl font-bold text-slate-900 mb-2">Bảo Vệ Danh Tính</h2>
                         <p className="text-slate-500 text-sm mb-6 px-4">
-                            Tạo "chữ ký sinh trắc học" cho chính bạn. Ngăn kẻ xấu giả mạo giọng nói của bạn để đi lừa đảo người khác.
+                            Tạo "chữ ký sinh trắc học" cho chính bạn bằng Micro. Ngăn kẻ xấu giả mạo giọng nói của bạn.
                         </p>
                         <button 
                             onClick={startRecording}
                             className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                         >
-                            <Mic size={20} /> Bắt Đầu Ghi Âm (30s)
+                            <Mic size={20} /> Ghi Âm Micro (15s)
                         </button>
                     </>
                 ) : (
@@ -181,7 +256,7 @@ const VoiceSetupModal: React.FC<VoiceSetupModalProps> = ({ onClose, initialTab =
                             disabled={!famName || !famRel}
                             className="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold shadow-lg shadow-purple-200 hover:bg-purple-700 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
                         >
-                            <Mic size={20} /> Bắt Đầu Ghi Âm (30s)
+                            <Mic size={20} /> Ghi Âm Micro (15s)
                         </button>
                     </>
                 )}
@@ -193,7 +268,7 @@ const VoiceSetupModal: React.FC<VoiceSetupModalProps> = ({ onClose, initialTab =
             <div className="animate-in fade-in duration-300 pt-8">
                 <div className="mb-8">
                     <span className="inline-block px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-full animate-pulse mb-4">
-                        ● ĐANG THU THẬP MẪU
+                        ● ĐANG GHI ÂM THỰC TẾ
                     </span>
                     <p className="text-slate-500 text-sm mb-2">Hãy đọc to rõ dòng chữ bên dưới:</p>
                     <h3 className="text-xl font-bold text-slate-800 mb-4 transition-all min-h-[80px] p-4 bg-slate-50 rounded-xl flex items-center justify-center border-2 border-dashed border-slate-200">
@@ -205,10 +280,10 @@ const VoiceSetupModal: React.FC<VoiceSetupModalProps> = ({ onClose, initialTab =
                         {[...Array(12)].map((_, i) => (
                             <div 
                                 key={i} 
-                                className={`w-1.5 rounded-full animate-[bounce_1s_infinite] ${activeTab === 'self' ? 'bg-blue-500' : 'bg-purple-500'}`}
+                                className={`w-1.5 rounded-full animate-[bounce_0.5s_infinite] ${activeTab === 'self' ? 'bg-blue-500' : 'bg-purple-500'}`}
                                 style={{ 
-                                    height: `${Math.random() * 100}%`,
-                                    animationDelay: `${i * 0.08}s` 
+                                    height: `${20 + Math.random() * 80}%`,
+                                    animationDelay: `${i * 0.05}s` 
                                 }}
                             ></div>
                         ))}
@@ -225,6 +300,13 @@ const VoiceSetupModal: React.FC<VoiceSetupModalProps> = ({ onClose, initialTab =
                     <span>{recordingTime}s</span>
                     <span>{RECORDING_DURATION}s</span>
                 </div>
+
+                <button 
+                    onClick={stopRecording}
+                    className="mt-6 bg-slate-200 hover:bg-slate-300 text-slate-700 px-6 py-2 rounded-full font-bold text-sm"
+                >
+                    Dừng Sớm
+                </button>
             </div>
         )}
 
@@ -236,8 +318,8 @@ const VoiceSetupModal: React.FC<VoiceSetupModalProps> = ({ onClose, initialTab =
                     <div className={`absolute inset-0 border-4 rounded-full border-t-transparent animate-spin ${activeTab === 'self' ? 'border-blue-600' : 'border-purple-600'}`}></div>
                     <Activity className={`absolute inset-0 m-auto ${activeTab === 'self' ? 'text-blue-600' : 'text-purple-600'}`} size={32} />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-2">Đang Mã Hóa Voice DNA...</h3>
-                <p className="text-slate-500 text-sm">Dữ liệu đang được xử lý cục bộ và lưu trữ an toàn.</p>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Đang Lưu Voice DNA...</h3>
+                <p className="text-slate-500 text-sm">Dữ liệu đang được ghi vào bộ nhớ bảo mật (IndexedDB).</p>
             </div>
         )}
 

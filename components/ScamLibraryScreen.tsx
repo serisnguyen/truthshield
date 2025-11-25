@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { BookOpen, ShieldAlert, Zap, Banknote, Heart, RefreshCw, AlertTriangle, Volume2, StopCircle, PlayCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -59,16 +60,20 @@ const ScamLibraryScreen: React.FC<ScamLibraryScreenProps> = ({ onOpenTutorial })
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
-  // Load voices when component mounts
+  // Improved Voice Loading Logic
   useEffect(() => {
     const loadVoices = () => {
       const availableVoices = window.speechSynthesis.getVoices();
       setVoices(availableVoices);
+      
+      // Debug: Log voices
+      // const vnVoices = availableVoices.filter(v => v.lang.includes('vi'));
+      // console.log("Vietnamese Voices found:", vnVoices.map(v => v.name));
     };
 
     loadVoices();
     
-    // Chrome loads voices asynchronously
+    // Chrome/Edge loads asynchronously
     if (window.speechSynthesis.onvoiceschanged !== undefined) {
       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
@@ -82,7 +87,6 @@ const ScamLibraryScreen: React.FC<ScamLibraryScreenProps> = ({ onOpenTutorial })
 
   const fetchNewScams = () => {
     setIsLoading(true);
-    // Simulate an AI call (using the same logic as news fetch)
     setTimeout(() => {
       const newScam: Scam = {
         id: Date.now(),
@@ -99,56 +103,45 @@ const ScamLibraryScreen: React.FC<ScamLibraryScreenProps> = ({ onOpenTutorial })
   };
 
   const speak = (scam: Scam) => {
-    // Fallback for browsers without TTS support
     if (!('speechSynthesis' in window)) {
-      setErrorMsg("Thiết bị của bạn không hỗ trợ tính năng đọc văn bản.");
-      setTimeout(() => setErrorMsg(null), 4000);
+      setErrorMsg("Thiết bị không hỗ trợ đọc văn bản.");
       return;
     }
 
     const synth = window.speechSynthesis;
 
-    // Toggle Logic: If clicking the same item, stop it.
+    // Toggle logic
     if (speakingId === scam.id) {
       synth.cancel();
       setSpeakingId(null);
       return;
     }
 
-    // Stop any currently playing speech before starting new one
     synth.cancel();
     
     const text = `Cảnh báo lừa đảo dạng ${scam.type}. ${scam.title}. ${scam.description}`;
     const utterance = new SpeechSynthesisUtterance(text);
     
-    // Voice Selection Logic: Robustly try to find a Vietnamese voice
-    // Ensure we have the latest list of voices
-    let availableVoices = voices;
-    if (availableVoices.length === 0) {
-        availableVoices = synth.getVoices();
-    }
-
-    // Priority: exact 'vi-VN', then starts with 'vi', then includes 'Viet'
-    const vnVoice = availableVoices.find(v => v.lang === 'vi-VN') || 
-                    availableVoices.find(v => v.lang.startsWith('vi')) ||
-                    availableVoices.find(v => v.name.includes('Viet'));
+    // Robust Voice Selection
+    // Priority: 1. vi-VN, 2. startsWith('vi'), 3. includes 'Viet', 4. Google's Vietnamese
+    let availableVoices = voices.length > 0 ? voices : synth.getVoices();
+    
+    const vnVoice = 
+        availableVoices.find(v => v.lang === 'vi-VN') ||
+        availableVoices.find(v => v.lang.startsWith('vi')) ||
+        availableVoices.find(v => v.name.toLowerCase().includes('viet')) ||
+        availableVoices.find(v => v.name.includes('Google') && v.lang.startsWith('vi')) ||
+        availableVoices.find(v => v.lang.includes('VN'));
 
     if (vnVoice) {
         utterance.voice = vnVoice;
-        console.log("Using voice:", vnVoice.name);
+        utterance.lang = vnVoice.lang;
     } else {
-        console.warn("Vietnamese voice not found. Using default.");
-        // Try to force lang even if voice obj not found
+        // Fallback: force lang code and hope for best
         utterance.lang = 'vi-VN';
-        
-        // Notify user if no Vietnamese voice might be available
-        if (!availableVoices.some(v => v.lang.startsWith('vi'))) {
-             setErrorMsg("Máy chưa cài giọng đọc Tiếng Việt. Vui lòng kiểm tra cài đặt ngôn ngữ.");
-             setTimeout(() => setErrorMsg(null), 5000);
-        }
     }
     
-    utterance.rate = 0.9; // Slightly slower for clarity
+    utterance.rate = isSeniorMode ? 0.85 : 0.95; // Slightly slower for seniors
     utterance.pitch = 1.0;
     
     utterance.onstart = () => setSpeakingId(scam.id);
@@ -156,10 +149,11 @@ const ScamLibraryScreen: React.FC<ScamLibraryScreenProps> = ({ onOpenTutorial })
     
     utterance.onerror = (event) => {
         setSpeakingId(null);
-        // Don't report error if it was just canceled by the user (interrupted)
         if (event.error !== 'interrupted' && event.error !== 'canceled') {
-            console.error("TTS Error:", event);
-            setErrorMsg("Không thể phát âm thanh. Vui lòng kiểm tra âm lượng.");
+            let msg = "Không thể phát âm thanh.";
+            if (event.error === 'network') msg = "Lỗi mạng khi tải giọng đọc.";
+            if (event.error === 'synthesis-unavailable') msg = "Giọng đọc chưa sẵn sàng.";
+            setErrorMsg(msg);
             setTimeout(() => setErrorMsg(null), 3000);
         }
     };
@@ -170,16 +164,11 @@ const ScamLibraryScreen: React.FC<ScamLibraryScreenProps> = ({ onOpenTutorial })
   const getIcon = (type: string) => {
     const size = isSeniorMode ? 40 : 20;
     switch (type) {
-      case 'Deepfake':
-        return <ShieldAlert size={size} className="text-red-600" />;
-      case 'Giả danh':
-        return <Banknote size={size} className="text-blue-600" />;
-      case 'Đầu tư':
-        return <Zap size={size} className="text-yellow-600" />;
-      case 'Tình cảm':
-        return <Heart size={size} className="text-pink-600" />;
-      default:
-        return <AlertTriangle size={size} className="text-slate-600" />;
+      case 'Deepfake': return <ShieldAlert size={size} className="text-red-600" />;
+      case 'Giả danh': return <Banknote size={size} className="text-blue-600" />;
+      case 'Đầu tư': return <Zap size={size} className="text-yellow-600" />;
+      case 'Tình cảm': return <Heart size={size} className="text-pink-600" />;
+      default: return <AlertTriangle size={size} className="text-slate-600" />;
     }
   };
 
@@ -240,12 +229,11 @@ const ScamLibraryScreen: React.FC<ScamLibraryScreenProps> = ({ onOpenTutorial })
         {scams.map((scam) => (
           <div 
             key={scam.id} 
-            onClick={() => isSeniorMode && speak(scam)} // Tap anywhere to speak in senior mode
+            onClick={() => isSeniorMode && speak(scam)} 
             className={`bg-white rounded-3xl shadow-sm hover:shadow-lg transition-all relative overflow-hidden group cursor-pointer ${
                 isSeniorMode ? 'border-4 border-slate-200 p-6 active:bg-blue-50' : 'border border-slate-200 p-5'
             }`}
           >
-             {/* Risk Badge */}
              <div className={`absolute top-0 right-0 rounded-bl-2xl text-white font-bold uppercase tracking-wide shadow-sm flex items-center gap-1 ${
                scam.risk === 'Cao' ? 'bg-red-600' : scam.risk === 'Trung bình' ? 'bg-amber-500' : 'bg-blue-600'
              } ${isSeniorMode ? 'text-lg px-6 py-2' : 'text-xs px-3 py-1'}`}>
@@ -254,12 +242,10 @@ const ScamLibraryScreen: React.FC<ScamLibraryScreenProps> = ({ onOpenTutorial })
              </div>
 
             <div className="flex flex-col md:flex-row md:items-start gap-4 mb-3 pt-8 md:pt-0">
-              {/* Icon */}
               <div className={`flex-shrink-0 bg-slate-100 rounded-2xl flex items-center justify-center border-2 border-slate-200 ${isSeniorMode ? 'w-20 h-20' : 'w-12 h-12'}`}>
                 {getIcon(scam.type)}
               </div>
 
-              {/* Title & Type */}
               <div className="flex-1 pr-4">
                 <span className={`font-bold text-slate-500 uppercase tracking-wide block mb-1 ${isSeniorMode ? 'text-base' : 'text-xs'}`}>
                     {scam.type}
@@ -269,7 +255,6 @@ const ScamLibraryScreen: React.FC<ScamLibraryScreenProps> = ({ onOpenTutorial })
                 </h3>
               </div>
               
-              {/* READ ALOUD BUTTON (Specific for Seniors) */}
               {isSeniorMode && (
                   <button 
                     onClick={(e) => {

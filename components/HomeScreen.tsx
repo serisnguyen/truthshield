@@ -68,18 +68,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert, onNavigate }) =
   useEffect(() => {
     let stream: MediaStream | null = null;
     let isMounted = true;
+    const MAX_RETRIES = 2;
 
-    const startSurveillance = async () => {
+    const startSurveillance = async (retryCount = 0) => {
       setCameraError(null);
+      
+      // Fallback constraints based on retry count
+      const constraints = { 
+        video: retryCount === 0 
+            ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+            : retryCount === 1
+            ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+            : { facingMode: 'user' }, // Last resort
+        audio: true 
+      };
+
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error("Trình duyệt không hỗ trợ Camera");
+            throw new Error("NOT_SUPPORTED");
         }
 
-        const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: 'user' },
-          audio: true 
-        });
+        const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
 
         if (!isMounted) {
           mediaStream.getTracks().forEach(t => t.stop());
@@ -90,15 +99,36 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert, onNavigate }) =
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.setAttribute('playsinline', 'true'); 
-          await videoRef.current.play().catch(e => console.error("Play error", e));
+          videoRef.current.setAttribute('muted', 'true'); // Important for autoplay
+          await videoRef.current.play().catch(e => {
+              console.warn("Autoplay blocked:", e);
+              setCameraError("Vui lòng chạm vào màn hình để bật Camera.");
+          });
         }
         setCameraActive(true);
         setIsScanning(true);
       } catch (err: any) {
         if (!isMounted) return;
-        setCameraError("Không thể mở Camera.");
+        console.error("Camera Error:", err);
+        
+        if (err.message === "NOT_SUPPORTED") {
+             setCameraError("Trình duyệt không hỗ trợ Camera.");
+        } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+             setCameraError("Quyền Camera bị từ chối. Vui lòng bật trong Cài đặt.");
+        } else if (err.name === 'NotFoundError') {
+             setCameraError("Không tìm thấy Camera trên thiết bị.");
+        } else if (err.name === 'NotReadableError') {
+             setCameraError("Camera đang được sử dụng bởi ứng dụng khác.");
+        } else if (retryCount < MAX_RETRIES) {
+             console.log(`Retrying camera (${retryCount + 1})...`);
+             setTimeout(() => startSurveillance(retryCount + 1), 1000);
+             return;
+        } else {
+             setCameraError("Không thể mở Camera. Vui lòng kiểm tra lại.");
+        }
+        
         setCameraActive(false);
-        setIsScanning(false); // ✅ FIX: Set scanning to false on error to update UI correctly
+        setIsScanning(false);
       }
     };
 
@@ -317,6 +347,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert, onNavigate }) =
                     <div className="absolute top-0 left-0 right-0 bg-red-600 text-white text-xs py-1 text-center font-bold uppercase tracking-wider animate-pulse">ĐANG QUÉT</div>
                  </div>
             )}
+
+            {/* Camera Error Toast */}
+            {cameraError && permissionGranted && (
+                <div className="fixed bottom-36 left-4 right-4 z-50 bg-red-100 border-2 border-red-500 p-4 rounded-2xl text-center shadow-2xl animate-in slide-in-from-bottom-4">
+                    <p className="text-red-800 font-bold text-lg mb-2">{cameraError}</p>
+                    <button 
+                        onClick={() => setPermissionGranted(false)}
+                        className="bg-red-600 text-white px-6 py-2 rounded-xl font-bold"
+                    >
+                        Tắt & Thử lại
+                    </button>
+                </div>
+            )}
             
             {showVoiceModal && (
                 <VoiceSetupModal 
@@ -328,7 +371,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onTriggerAlert, onNavigate }) =
     );
   }
 
-  // --- UI FOR RELATIVE (DASHBOARD) ---
+  // --- RELATIVE INTERFACE (UNCHANGED) ---
   return (
     <div className="p-4 pt-24 md:pt-10 pb-20 max-w-5xl mx-auto animate-in fade-in duration-500">
        

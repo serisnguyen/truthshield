@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { MessageSquareText, Sparkles, AlertTriangle, CheckCircle, Copy, Search, ArrowRight, ShieldAlert, ChevronDown, ChevronUp, Clock, Trash2, Share2 } from 'lucide-react';
 import { analyzeMessageRisk } from '../services/aiService';
 import { useAuth } from '../context/AuthContext';
@@ -12,19 +12,19 @@ const MessageGuard: React.FC = () => {
   const [explanation, setExplanation] = useState('');
   const [showHistory, setShowHistory] = useState(false);
 
-  const analyzeMessage = async () => {
+  // Memoize history sorting or processing if needed in future
+  const hasHistory = useMemo(() => user?.messageHistory && user.messageHistory.length > 0, [user?.messageHistory]);
+
+  const analyzeMessage = useCallback(async () => {
     if (!input.trim()) return;
     setAnalyzing(true);
     setResult(null);
 
     try {
-      // Use the Secure AI Service
       const analysis = await analyzeMessageRisk(input);
-      
       setResult(analysis.result);
       setExplanation(analysis.explanation);
 
-      // Save to History
       addMessageAnalysis({
         text: input,
         result: analysis.result,
@@ -37,9 +37,9 @@ const MessageGuard: React.FC = () => {
     } finally {
       setAnalyzing(false);
     }
-  };
+  }, [input, addMessageAnalysis]);
 
-  const handleShare = async () => {
+  const handleShare = useCallback(async () => {
     if (!result) return;
     
     const resultText = result === 'safe' ? 'AN TOÀN' : result === 'scam' ? 'LỪA ĐẢO' : 'CẦN CẢNH GIÁC';
@@ -55,7 +55,6 @@ const MessageGuard: React.FC = () => {
             console.log('Share canceled');
         }
     } else {
-        // Fallback for desktop/unsupported browsers
         try {
             await navigator.clipboard.writeText(shareData.text);
             alert('Đã sao chép thông tin cảnh báo vào bộ nhớ tạm!');
@@ -63,7 +62,7 @@ const MessageGuard: React.FC = () => {
             alert('Không thể chia sẻ nội dung này.');
         }
     }
-  };
+  }, [result, explanation, input]);
 
   const getResultColor = (res: 'safe' | 'suspicious' | 'scam') => {
       switch(res) {
@@ -172,8 +171,8 @@ const MessageGuard: React.FC = () => {
           </div>
         )}
 
-        {/* HISTORY SECTION (NEW) */}
-        {user?.messageHistory && user.messageHistory.length > 0 && (
+        {/* HISTORY SECTION */}
+        {hasHistory && (
           <div className={`bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-in slide-in-from-bottom duration-500 delay-150`}>
               <button 
                   onClick={() => setShowHistory(!showHistory)}
@@ -182,7 +181,7 @@ const MessageGuard: React.FC = () => {
                   <div className="flex items-center gap-3">
                       <Clock size={isSeniorMode ? 28 : 20} className="text-slate-400" />
                       <span className={`font-bold text-slate-700 ${isSeniorMode ? 'text-xl' : 'text-base'}`}>
-                          Lịch sử kiểm tra ({user.messageHistory.length})
+                          Lịch sử kiểm tra ({user?.messageHistory?.length})
                       </span>
                   </div>
                   {showHistory ? <ChevronUp size={isSeniorMode ? 28 : 20} className="text-slate-400" /> : <ChevronDown size={isSeniorMode ? 28 : 20} className="text-slate-400" />}
@@ -191,7 +190,7 @@ const MessageGuard: React.FC = () => {
               {showHistory && (
                   <div className="border-t border-slate-100 bg-slate-50/50">
                       <div className="max-h-80 overflow-y-auto">
-                          {user.messageHistory.map((item) => (
+                          {user?.messageHistory.map((item) => (
                               <div key={item.id} className={`border-b border-slate-100 last:border-0 ${isSeniorMode ? 'p-6' : 'p-4'}`}>
                                   <div className="flex justify-between items-start mb-2">
                                       <span className={`text-xs font-bold uppercase px-2 py-1 rounded border ${getResultColor(item.result)}`}>
@@ -252,4 +251,4 @@ const MessageGuard: React.FC = () => {
   );
 };
 
-export default MessageGuard;
+export default React.memo(MessageGuard);

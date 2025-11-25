@@ -28,6 +28,7 @@ export interface FamilyVoiceProfile {
   name: string;
   relationship: string;
   timestamp: number;
+  audioId?: string; // Reference to IndexedDB
 }
 
 export interface CallLogItem {
