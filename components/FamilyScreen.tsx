@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Smartphone, ShieldCheck, Wifi, UserPlus, Link, CheckCircle2, Copy, Trash2, PhoneOff, RefreshCw, AlertOctagon, Clock, Loader2, WifiOff, KeyRound } from 'lucide-react';
+import { Smartphone, ShieldCheck, Wifi, Link, CheckCircle2, Copy, Trash2, PhoneOff, RefreshCw, AlertOctagon, Clock, Loader2, WifiOff, KeyRound, Mic, UserPlus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import VoiceSetupModal from './VoiceSetupModal';
 
 interface FamilyMember {
   id: string;
@@ -9,61 +10,82 @@ interface FamilyMember {
   status: 'safe' | 'pending' | 'disconnected';
   device: string;
   connection: string;
-  risk: string;
 }
 
 const FamilyScreen: React.FC = () => {
-  const { user, addEmergencyContact, removeEmergencyContact, regenerateFamilyId } = useAuth();
+  const { user, role, addEmergencyContact, removeEmergencyContact, regenerateFamilyId, isSeniorMode } = useAuth();
   
+  // State for adding contacts/parents
+  const [inputCode, setInputCode] = useState('');
   const [newContactName, setNewContactName] = useState('');
   const [newContactPhone, setNewContactPhone] = useState('');
   const [showAddContact, setShowAddContact] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
   
-  // Family Code Timer Logic
-  const CODE_DURATION = 300; // 5 minutes in seconds
+  // Family Code Timer Logic (For Elders)
+  const CODE_DURATION = 60; // Set to 1 minute as requested
   const [timeLeft, setTimeLeft] = useState(CODE_DURATION);
-  const [progress, setProgress] = useState(100);
+  
+  // Local state for demo if user not logged in
+  const [localDemoId, setLocalDemoId] = useState("123456");
+  const [localDemoTimestamp, setLocalDemoTimestamp] = useState(Date.now());
 
-  // Remote Disconnect Modal State
-  const [disconnectTarget, setDisconnectTarget] = useState<FamilyMember | null>(null);
-  const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [disconnectSuccess, setDisconnectSuccess] = useState(false);
-
-  // Simulated Family Data State
-  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
-    { id: '1', name: user ? user.name + ' (Tôi)' : 'Tôi', status: 'safe', device: 'iPhone 14', connection: 'Đang online', risk: 'None' },
-    { id: '2', name: 'Vợ/Chồng', status: 'safe', device: 'Samsung S24', connection: '5 phút trước', risk: 'None' },
-    { id: '3', name: 'Con', status: 'pending', device: 'Chưa kích hoạt', connection: '--', risk: '--' },
-  ]);
+  const displayId = user?.familyId || localDemoId;
+  const displayTimestamp = user?.familyCodeTimestamp || localDemoTimestamp;
 
   useEffect(() => {
-    if (!user?.familyCodeTimestamp) return;
+    if (role === 'elder') {
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const elapsed = Math.floor((now - displayTimestamp) / 1000);
+            const remaining = Math.max(0, CODE_DURATION - elapsed);
+            setTimeLeft(remaining);
+            
+            if (remaining === 0) {
+                 if (user) regenerateFamilyId();
+                 else {
+                     setLocalDemoId(Math.floor(100000 + Math.random() * 900000).toString());
+                     setLocalDemoTimestamp(Date.now());
+                 }
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }
+  }, [user, role, regenerateFamilyId, displayTimestamp]);
 
-    const interval = setInterval(() => {
-        const now = Date.now();
-        const elapsed = Math.floor((now - user.familyCodeTimestamp!) / 1000);
-        const remaining = Math.max(0, CODE_DURATION - elapsed);
-        
-        setTimeLeft(remaining);
-        setProgress((remaining / CODE_DURATION) * 100);
-
-        // Auto regenerate when expired
-        if (remaining === 0) {
-            regenerateFamilyId();
-        }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [user?.familyCodeTimestamp, regenerateFamilyId]);
+  const handleManualRefresh = () => {
+      if (user) regenerateFamilyId();
+      else {
+           setLocalDemoId(Math.floor(100000 + Math.random() * 900000).toString());
+           setLocalDemoTimestamp(Date.now());
+      }
+  };
 
   const handleCopy = async () => {
     try {
-      const idToCopy = user ? user.familyId : "FAMILY-INVALID";
-      await navigator.clipboard.writeText(idToCopy);
-      // Optional: Add a small toast here if needed
-    } catch (err) {
-      console.warn("Clipboard write failed", err);
-    }
+      await navigator.clipboard.writeText(displayId);
+    } catch (err) {}
+  };
+
+  const handleConnectParent = () => {
+      if(!inputCode) return;
+      
+      // Use a fixed Mock ID representing the Elder device for demo purposes.
+      const MOCK_ELDER_ID = "123456"; 
+      
+      setIsConnecting(true);
+      
+      setTimeout(() => {
+          setIsConnecting(false);
+          // Strictly check logic and allow only exact match against the target device ID
+          if (inputCode === MOCK_ELDER_ID) { 
+             setInputCode('');
+             alert("Kết nối thành công với thiết bị Ba/Mẹ (Mock)!");
+          } else {
+             alert("Mã kết nối không đúng. Vui lòng thử lại.");
+          }
+      }, 1500);
   };
 
   const handleAddContact = (e: React.FormEvent) => {
@@ -76,271 +98,170 @@ const FamilyScreen: React.FC = () => {
     }
   };
 
-  const triggerDisconnect = () => {
-      if (!disconnectTarget) return;
-      
-      setIsDisconnecting(true);
-      
-      // Simulate network request
-      setTimeout(() => {
-          setIsDisconnecting(false);
-          setDisconnectSuccess(true);
-          
-          // Update the member status visually
-          setFamilyMembers(prev => prev.map(m => 
-            m.id === disconnectTarget.id 
-              ? { ...m, status: 'disconnected', connection: 'Đã ngắt kết nối', device: 'Bị khóa tạm thời' } 
-              : m
-          ));
+  const formatCode = (code: string) => code ? code.match(/.{1,3}/g)?.join(' ') || code : "...";
+  const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
 
-          // Close modal after showing success
-          setTimeout(() => {
-              setDisconnectSuccess(false);
-              setDisconnectTarget(null);
-          }, 1500);
-      }, 2000);
-  };
+  // --- ELDER VIEW: SHOW CODE ---
+  if (role === 'elder') {
+      return (
+        <div className="p-4 pt-6 pb-32 min-h-screen bg-slate-50 flex flex-col items-center animate-in fade-in">
+             <div className="w-full max-w-md text-center mb-8">
+                 <h2 className="text-2xl font-bold text-slate-800 mb-2">Mã Kết Nối Của Bác</h2>
+                 <p className="text-slate-500 text-lg">Đọc mã số này hoặc đưa mã QR cho con/cháu để kết nối.</p>
+             </div>
 
-  const formatTime = (seconds: number) => {
-      const m = Math.floor(seconds / 60);
-      const s = seconds % 60;
-      return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
+             <div className="w-full max-w-md bg-white rounded-3xl border-4 border-slate-200 p-8 text-center shadow-lg mb-8 relative overflow-hidden">
+                 <div className="text-6xl font-black text-slate-800 tracking-wider mb-6 font-mono">
+                     {formatCode(displayId)}
+                 </div>
 
-  const formatCode = (code: string) => {
-      if (!code) return "LOADING";
-      // Split into groups of 3 for readability (e.g. 123 456)
-      return code.match(/.{1,3}/g)?.join(' ') || code;
-  };
-
-  return (
-    <div className="p-4 pt-20 md:pt-10 pb-32 min-h-screen max-w-4xl mx-auto animate-in fade-in duration-300">
-      
-      {/* Remote Disconnect Modal */}
-      {disconnectTarget && (
-          <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-              <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border-t-8 border-red-500 animate-[shake_0.3s_ease-out]">
-                  
-                  {disconnectSuccess ? (
-                    <div className="flex flex-col items-center text-center py-4 animate-in zoom-in duration-300">
-                        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                            <CheckCircle2 size={40} className="text-green-600" />
-                        </div>
-                        <h3 className="text-2xl font-black text-slate-900 mb-2">ĐÃ NGẮT KẾT NỐI</h3>
-                        <p className="text-slate-500">Thiết bị của {disconnectTarget.name} đã được bảo vệ.</p>
+                 {/* QR Code Section */}
+                 <div className="flex justify-center mb-6">
+                    <div className="p-3 bg-white rounded-xl border-2 border-slate-100 shadow-sm">
+                        <img 
+                            key={displayId} /* Force refresh image when ID changes */
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${displayId}&color=0f172a`} 
+                            alt="Family Code QR" 
+                            className="w-40 h-40 rounded-lg"
+                        />
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center text-center">
-                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                            <AlertOctagon size={32} className="text-red-600" />
-                        </div>
-                        <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase">Cảnh Báo</h3>
-                        <p className="text-slate-600 mb-6">
-                            Bạn sắp kích hoạt giao thức ngắt kết nối khẩn cấp cho thiết bị của <strong>{disconnectTarget.name}</strong>.
-                            <br/><span className="text-xs text-red-500 font-bold mt-2 block">Hành động này sẽ dừng mọi cuộc gọi đang diễn ra.</span>
-                        </p>
-                        
-                        <div className="w-full space-y-3">
-                            <button 
-                              onClick={triggerDisconnect}
-                              disabled={isDisconnecting}
-                              className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-all flex items-center justify-center gap-2 touch-target"
-                            >
-                              {isDisconnecting ? <Loader2 className="animate-spin" /> : <PhoneOff />}
-                              {isDisconnecting ? 'Đang gửi tín hiệu...' : 'NGẮT KẾT NỐI NGAY'}
-                            </button>
-                            <button 
-                              onClick={() => setDisconnectTarget(null)}
-                              disabled={isDisconnecting}
-                              className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
-                            >
-                              Hủy bỏ
-                            </button>
-                        </div>
-                    </div>
-                  )}
-              </div>
-          </div>
-      )}
-
-      {/* Header */}
-      <div className="flex flex-col justify-start mb-6 border-b border-slate-200 pb-4 gap-2">
-        <h2 className="text-3xl font-bold text-slate-900">Gia Đình</h2>
-        <p className="text-slate-500 text-sm">Trung tâm chỉ huy bảo vệ người thân.</p>
-      </div>
-
-      {/* OTP Link Code Section - Redesigned */}
-      <div className="mb-8 bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden">
-         <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 text-white">
-            <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-white/10 rounded-xl backdrop-blur-sm">
-                    <KeyRound size={24} className="text-blue-400" />
-                </div>
-                <div>
-                    <h3 className="text-lg font-bold">Mã Kết Nối (OTP)</h3>
-                    <p className="text-slate-400 text-xs">Dùng mã này để liên kết thiết bị khác</p>
-                </div>
-            </div>
-         </div>
-
-         <div className="p-6 flex flex-col items-center gap-6">
-            {/* The Code Display */}
-            <div className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-6 text-center relative group">
-                <div className="text-4xl md:text-5xl font-mono font-black text-slate-800 tracking-wider select-all">
-                    {formatCode(user ? user.familyId : "...")}
-                </div>
-                <p className="text-xs text-slate-400 mt-2 font-medium uppercase tracking-wide">Tự động đổi sau mỗi 5 phút</p>
-                
-                {/* Progress Bar */}
-                <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-200 rounded-b-2xl overflow-hidden">
-                    <div 
-                        className={`h-full transition-all duration-1000 ease-linear ${
-                            progress > 50 ? 'bg-green-500' : 
-                            progress > 20 ? 'bg-yellow-500' : 'bg-red-500'
-                        }`}
-                        style={{ width: `${progress}%` }}
-                    />
-                </div>
-            </div>
-
-            {/* Timer & Actions */}
-            <div className="w-full flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-2 text-slate-500 text-sm font-mono bg-slate-100 px-3 py-1.5 rounded-lg">
-                    <Clock size={16} />
-                    <span>Hết hạn trong: <span className="font-bold text-slate-800">{formatTime(timeLeft)}</span></span>
-                </div>
-
-                <div className="flex gap-2 w-full md:w-auto">
-                    <button 
-                        onClick={handleCopy}
-                        className="flex-1 md:flex-none py-3 px-5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2"
-                    >
-                        <Copy size={18} /> Sao chép
-                    </button>
-                    <button 
-                        onClick={() => regenerateFamilyId()}
-                        className="aspect-square py-3 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all active:scale-95 flex items-center justify-center"
-                        title="Tạo mã mới ngay"
-                    >
-                        <RefreshCw size={20} className={timeLeft < 5 ? "animate-spin" : ""} />
-                    </button>
-                </div>
-            </div>
-         </div>
-      </div>
-
-      {/* Connected Devices */}
-      <h3 className="text-lg font-bold text-slate-800 mb-3 px-2 flex items-center gap-2">
-          <Wifi size={20} className="text-blue-600" /> Thiết bị đã kết nối
-      </h3>
-      <div className="grid gap-3 mb-8">
-        {familyMembers.map((member) => (
-          <div key={member.id} className={`bg-white border border-slate-200 p-4 rounded-2xl flex flex-col shadow-sm transition-all gap-4 ${member.status === 'disconnected' ? 'opacity-70 bg-slate-50' : 'hover:shadow-md'}`}>
-               <div className="flex items-center gap-4">
-                 {/* Avatar */}
-                 <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shadow-sm flex-shrink-0 transition-colors ${
-                   member.status === 'safe' 
-                   ? 'bg-blue-600 text-white' 
-                   : member.status === 'disconnected'
-                   ? 'bg-slate-300 text-slate-500'
-                   : 'bg-slate-100 text-slate-400 border-2 border-dashed border-slate-300'
-                 }`}>
-                   {member.status === 'disconnected' ? <WifiOff size={20} /> : member.name.charAt(0)}
                  </div>
                  
-                 <div className="flex-1 min-w-0">
-                   <h3 className="text-slate-900 font-bold text-base truncate">{member.name}</h3>
-                   <div className="flex flex-wrap items-center gap-2 text-xs mt-1">
-                     {member.status === 'safe' ? (
-                       <>
-                        <span className="text-green-700 flex items-center gap-1 bg-green-50 px-1.5 py-0.5 rounded font-bold border border-green-100">
-                          <ShieldCheck size={10} /> AN TOÀN
-                        </span>
-                        <span className="text-slate-400 flex items-center gap-1 truncate">
-                           <Wifi size={10} /> {member.connection}
-                        </span>
-                       </>
-                     ) : member.status === 'disconnected' ? (
-                        <span className="text-slate-600 flex items-center gap-1 bg-slate-200 px-1.5 py-0.5 rounded font-bold">
-                          <PhoneOff size={10} /> ĐÃ NGẮT
-                        </span>
-                     ) : (
-                       <span className="text-amber-600 flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-100">
-                          <Link size={10} /> CHỜ KẾT NỐI
-                       </span>
-                     )}
-                   </div>
+                 <div className="flex items-center justify-center gap-2 text-slate-500 font-bold bg-slate-100 py-2 rounded-xl mb-6">
+                     <Clock size={20} /> Đổi sau: {formatTime(timeLeft)}
                  </div>
-               </div>
 
-               {member.status === 'safe' && member.name !== (user ? user.name + ' (Tôi)' : 'Tôi') && (
-                  <button 
-                      onClick={() => setDisconnectTarget(member)}
-                      className="w-full text-sm bg-red-50 text-red-600 px-4 py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-red-100 font-bold transition-colors border border-red-100 active:scale-95"
-                  >
-                      <PhoneOff size={16} /> Ngắt từ xa
-                  </button>
-               )}
-            </div>
-        ))}
-      </div>
+                 <div className="flex gap-4">
+                     <button onClick={handleCopy} className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg active:scale-95 transition-transform flex items-center justify-center gap-2">
+                         <Copy /> Sao Chép
+                     </button>
+                     <button onClick={handleManualRefresh} className="w-16 bg-slate-200 text-slate-600 rounded-xl flex items-center justify-center active:scale-95">
+                         <RefreshCw size={24} />
+                     </button>
+                 </div>
+             </div>
 
-      {/* Emergency Contacts Section */}
-      <div className="mb-8">
-         <div className="flex justify-between items-center mb-3 px-2">
-            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <Smartphone size={20} className="text-red-600" /> Danh bạ SOS
-            </h3>
-            <button 
-                onClick={() => setShowAddContact(!showAddContact)}
-                className="text-blue-600 font-bold text-xs bg-blue-50 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors active:scale-95"
+             <div className="w-full max-w-md">
+                 <h3 className="font-bold text-slate-700 text-xl mb-4 flex items-center gap-2"><Smartphone /> Thiết bị đã kết nối</h3>
+                 <div className="space-y-3">
+                     {user?.emergencyContacts && user.emergencyContacts.length > 0 ? (
+                         user.emergencyContacts.map(contact => (
+                             <div key={contact.id} className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4 shadow-sm">
+                                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600"><CheckCircle2 /></div>
+                                 <div>
+                                     <h4 className="font-bold text-lg text-slate-800">{contact.name}</h4>
+                                     <p className="text-slate-500">Đã kết nối an toàn</p>
+                                 </div>
+                             </div>
+                         ))
+                     ) : (
+                         <div className="text-center p-6 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300">
+                             <p className="text-slate-500 font-medium">Chưa có thiết bị kết nối.</p>
+                             <p className="text-sm text-slate-400">Hãy nhờ con cái nhập Mã Kết Nối ở trên.</p>
+                         </div>
+                     )}
+                 </div>
+             </div>
+        </div>
+      );
+  }
+
+  // --- RELATIVE VIEW: MANAGE & CONNECT ---
+  return (
+    <div className={`p-6 pt-24 md:pt-10 pb-20 max-w-4xl mx-auto animate-in fade-in ${isSeniorMode ? 'text-lg' : ''}`}>
+        <h2 className={`${isSeniorMode ? 'text-4xl' : 'text-3xl'} font-bold text-slate-900 mb-6`}>Quản Lý Gia Đình</h2>
+
+        {/* FAMILY VOICE REMINDER */}
+        {(!user?.familyVoiceProfiles || user.familyVoiceProfiles.length === 0) && (
+            <div 
+                onClick={() => setShowVoiceModal(true)}
+                className={`bg-indigo-50 border border-indigo-200 rounded-2xl mb-8 flex items-center gap-4 cursor-pointer hover:bg-indigo-100 transition-colors ${isSeniorMode ? 'p-6' : 'p-5'}`}
             >
-                {showAddContact ? 'Đóng' : '+ Thêm số'}
-            </button>
-         </div>
+                <div className={`bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 flex-shrink-0 ${isSeniorMode ? 'w-16 h-16' : 'w-12 h-12'}`}>
+                    <Mic size={isSeniorMode ? 32 : 24} />
+                </div>
+                <div className="flex-1">
+                    <h3 className={`font-bold text-slate-800 ${isSeniorMode ? 'text-xl' : 'text-lg'}`}>Chưa có Voice DNA Người thân?</h3>
+                    <p className={`text-slate-600 ${isSeniorMode ? 'text-base' : 'text-sm'}`}>Thêm giọng nói của bạn hoặc anh/chị em để giúp Ba Mẹ nhận diện cuộc gọi giả mạo.</p>
+                </div>
+                <button 
+                    onClick={(e) => {
+                        e.stopPropagation(); // Prevent double trigger
+                        setShowVoiceModal(true);
+                    }}
+                    className={`bg-indigo-600 text-white rounded-lg font-bold whitespace-nowrap ${isSeniorMode ? 'px-6 py-3 text-base' : 'px-4 py-2 text-sm'}`}
+                >
+                    Thêm ngay
+                </button>
+            </div>
+        )}
 
-         {showAddContact && (
-            <form onSubmit={handleAddContact} className="bg-white p-4 rounded-2xl mb-4 border border-slate-200 shadow-sm animate-in slide-in-from-top-2">
-                <div className="grid grid-cols-1 gap-3 mb-3">
-                    <input 
-                        type="text" placeholder="Tên (VD: Con trai)" 
-                        value={newContactName} onChange={e => setNewContactName(e.target.value)}
-                        className="p-4 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 outline-none w-full text-lg font-medium" required
-                    />
-                    <input 
-                        type="tel" placeholder="Số điện thoại" 
-                        value={newContactPhone} onChange={e => setNewContactPhone(e.target.value)}
-                        className="p-4 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 outline-none w-full text-lg font-medium" required
-                    />
-                </div>
-                <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-md hover:bg-blue-700 transition-colors active:scale-95 text-lg">Lưu liên hệ</button>
-            </form>
-         )}
+        {/* Connect New Device */}
+        <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm mb-8 ${isSeniorMode ? 'p-8' : 'p-6'}`}>
+            <h3 className={`font-bold text-slate-800 mb-4 flex items-center gap-2 ${isSeniorMode ? 'text-xl' : 'text-lg'}`}>
+                <Link size={isSeniorMode ? 24 : 20} className="text-blue-600" /> Kết nối thiết bị Cha/Mẹ
+            </h3>
+            <div className="flex flex-col md:flex-row gap-4">
+                <input 
+                    value={inputCode}
+                    onChange={(e) => setInputCode(e.target.value)}
+                    placeholder="Nhập mã 6 số từ máy Cha/Mẹ"
+                    className={`flex-1 bg-slate-50 border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-blue-500 outline-none ${isSeniorMode ? 'p-6 text-2xl' : 'p-4 text-lg'}`}
+                    maxLength={6}
+                />
+                <button 
+                    onClick={handleConnectParent}
+                    disabled={isConnecting || inputCode.length < 6}
+                    className={`bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${isSeniorMode ? 'px-10 py-6 text-xl' : 'px-8 py-4'}`}
+                >
+                    {isConnecting ? <Loader2 className="animate-spin" /> : <UserPlus size={isSeniorMode ? 24 : 20} />}
+                    Kết Nối
+                </button>
+            </div>
+        </div>
 
-         <div className="grid gap-3">
-            {user?.emergencyContacts.map(contact => (
-                <div key={contact.id} className="bg-white p-4 rounded-2xl border border-slate-200 flex justify-between items-center shadow-sm hover:shadow-md transition-all">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 flex-shrink-0">
-                            {contact.name.charAt(0)}
-                        </div>
-                        <div>
-                            <div className="font-bold text-slate-800 text-base">{contact.name}</div>
-                            <div className="text-slate-500 text-sm font-mono">{contact.phone}</div>
-                        </div>
-                    </div>
-                    <button onClick={() => removeEmergencyContact(contact.id)} className="text-slate-400 hover:text-red-500 p-3 rounded-full hover:bg-red-50 transition-colors active:scale-90">
-                        <Trash2 size={20} />
-                    </button>
-                </div>
-            ))}
-            {(!user?.emergencyContacts || user.emergencyContacts.length === 0) && (
-                <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-slate-400 text-sm">
-                    Chưa có liên hệ khẩn cấp nào.
-                </div>
-            )}
-         </div>
-      </div>
+        {/* SOS Contacts */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+             <div className={`border-b border-slate-100 flex justify-between items-center ${isSeniorMode ? 'p-8' : 'p-6'}`}>
+                 <h3 className={`font-bold text-slate-800 ${isSeniorMode ? 'text-xl' : 'text-lg'}`}>Danh bạ SOS</h3>
+                 <button onClick={() => setShowAddContact(!showAddContact)} className={`text-blue-600 font-bold ${isSeniorMode ? 'text-lg' : 'text-sm'}`}>+ Thêm mới</button>
+             </div>
+             
+             {showAddContact && (
+                 <form onSubmit={handleAddContact} className={`bg-slate-50 border-b border-slate-100 ${isSeniorMode ? 'p-6' : 'p-4'}`}>
+                     <div className="flex gap-3 mb-3">
+                         <input placeholder="Tên" value={newContactName} onChange={e=>setNewContactName(e.target.value)} className={`flex-1 rounded-lg border border-slate-300 ${isSeniorMode ? 'p-4 text-lg' : 'p-3'}`} required />
+                         <input placeholder="SĐT" value={newContactPhone} onChange={e=>setNewContactPhone(e.target.value)} className={`flex-1 rounded-lg border border-slate-300 ${isSeniorMode ? 'p-4 text-lg' : 'p-3'}`} required />
+                     </div>
+                     <button className={`w-full bg-blue-600 text-white rounded-lg font-bold ${isSeniorMode ? 'py-4 text-lg' : 'py-3'}`}>Lưu</button>
+                 </form>
+             )}
+
+             <div className={`grid gap-3 ${isSeniorMode ? 'p-6' : 'p-4'}`}>
+                 {user?.emergencyContacts.map(c => (
+                     <div key={c.id} className={`flex justify-between items-center hover:bg-slate-50 rounded-lg transition-colors ${isSeniorMode ? 'p-5' : 'p-3'}`}>
+                         <div className="flex items-center gap-3">
+                             <div className={`bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-600 ${isSeniorMode ? 'w-14 h-14 text-xl' : 'w-10 h-10'}`}>{c.name.charAt(0)}</div>
+                             <div>
+                                 <div className={`font-bold text-slate-900 ${isSeniorMode ? 'text-xl' : ''}`}>{c.name}</div>
+                                 <div className={`text-slate-500 ${isSeniorMode ? 'text-base' : 'text-sm'}`}>{c.phone}</div>
+                             </div>
+                         </div>
+                         <button onClick={() => removeEmergencyContact(c.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={isSeniorMode ? 24 : 18}/></button>
+                     </div>
+                 ))}
+                 {(!user?.emergencyContacts || user.emergencyContacts.length === 0) && (
+                     <p className="text-center text-slate-400 py-4">Chưa có danh bạ khẩn cấp.</p>
+                 )}
+             </div>
+        </div>
+
+        {showVoiceModal && (
+            <VoiceSetupModal 
+                onClose={() => setShowVoiceModal(false)} 
+                initialTab="family" 
+            />
+        )}
     </div>
   );
 };

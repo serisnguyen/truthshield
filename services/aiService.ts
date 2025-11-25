@@ -1,5 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
+import { CallLogItem } from "../context/AuthContext";
 
 // Initialize AI Client
 // ⚠️ WARNING: API KEY EXPOSURE RISK
@@ -107,4 +108,83 @@ export const analyzeMessageRisk = async (message: string): Promise<{
         explanation: "Không phát hiện từ khóa nguy hiểm (Chế độ Offline)."
     };
   }
+};
+
+/**
+ * Analyzes a call log entry to determine risk score.
+ */
+export const analyzeCallRisk = async (call: CallLogItem): Promise<{
+    riskScore: number;
+    explanation: string;
+}> => {
+    try {
+        const ai = getAIClient();
+        if (!ai) throw new Error("NO_API_KEY");
+
+        const prompt = `
+        System: You are a security expert analyzing call logs for seniors in Vietnam.
+        Data:
+        - Number: ${call.phoneNumber}
+        - Known Contact Name: ${call.contactName || "Unknown/None"}
+        - Duration: ${call.duration} seconds
+        - Direction: ${call.direction}
+
+        Heuristics:
+        1. Known contact = Very Low Risk (0-10%).
+        2. Unknown + Very short duration (<10s) = High Risk (Ping call/Spam) (60-80%).
+        3. Unknown + Long duration (>300s) = Potential Scam Risk (Inducing investment/fear) (40-60%).
+        4. Unknown + Medium duration = Medium Risk (30-50%).
+        
+        Task: Provide a risk score (0-100) and a very short explanation (max 15 words) in Vietnamese.
+        Format: "SCORE | EXPLANATION"
+        Example: "85 | Số lạ gọi nháy máy, có thể là lừa đảo cước phí."
+        `;
+
+        const response: any = await Promise.race([
+            ai.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents: [{ role: "user", parts: [{ text: prompt }] }]
+            }),
+            timeoutPromise(5000)
+        ]);
+
+        const text = response.text || "";
+        const [scoreStr, explanation] = text.split('|');
+        const score = parseInt(scoreStr.trim()) || 0;
+
+        return {
+            riskScore: score,
+            explanation: explanation?.trim() || "Đã phân tích."
+        };
+
+    } catch (error) {
+        console.error("Call Analysis Error", error);
+        // Fallback logic
+        let fallbackScore = 10;
+        let fallbackExp = "An toàn.";
+        
+        if (!call.contactName) {
+            if (call.duration < 10) { 
+                // Cuộc gọi dưới 10 giây (Nháy máy/Spam)
+                fallbackScore = 75;
+                fallbackExp = "Số lạ, gọi quá ngắn (Nháy máy).";
+            } else if (call.duration >= 300) { 
+                // Cuộc gọi từ 5 phút trở lên (Thời lượng lý tưởng cho lừa đảo)
+                fallbackScore = 65;
+                fallbackExp = "Số lạ, gọi rất lâu. Cần cảnh giác lừa đảo dàn dựng.";
+            } else { 
+                // Cuộc gọi có thời lượng trung bình (10s - 300s)
+                fallbackScore = 40;
+                fallbackExp = "Số lạ, cần xác minh.";
+            }
+        } else {
+            fallbackScore = 5;
+            fallbackExp = "Người quen trong danh bạ.";
+        }
+
+        return {
+            riskScore: fallbackScore,
+            explanation: fallbackExp + " (Offline)"
+        };
+    }
 };

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { BookOpen, ShieldAlert, Zap, Banknote, Heart, RefreshCw, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BookOpen, ShieldAlert, Zap, Banknote, Heart, RefreshCw, AlertTriangle, Volume2, StopCircle, PlayCircle, XCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface Scam {
   id: number;
@@ -8,6 +9,10 @@ interface Scam {
   risk: 'Cao' | 'Trung bình' | 'Thấp';
   description: string;
   keywords: string[];
+}
+
+interface ScamLibraryScreenProps {
+  onOpenTutorial?: () => void;
 }
 
 const initialScams: Scam[] = [
@@ -45,10 +50,35 @@ const initialScams: Scam[] = [
   },
 ];
 
-const ScamLibraryScreen: React.FC = () => {
+const ScamLibraryScreen: React.FC<ScamLibraryScreenProps> = ({ onOpenTutorial }) => {
+  const { isSeniorMode } = useAuth();
   const [scams, setScams] = useState<Scam[]>(initialScams);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date().toLocaleTimeString('vi-VN'));
+  const [speakingId, setSpeakingId] = useState<number | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  // Load voices when component mounts
+  useEffect(() => {
+    const loadVoices = () => {
+      const availableVoices = window.speechSynthesis.getVoices();
+      setVoices(availableVoices);
+    };
+
+    loadVoices();
+    
+    // Chrome loads voices asynchronously
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+    
+    return () => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   const fetchNewScams = () => {
     setIsLoading(true);
@@ -68,82 +98,208 @@ const ScamLibraryScreen: React.FC = () => {
     }, 1500);
   };
 
+  const speak = (scam: Scam) => {
+    // Fallback for browsers without TTS support
+    if (!('speechSynthesis' in window)) {
+      setErrorMsg("Thiết bị của bạn không hỗ trợ tính năng đọc văn bản.");
+      setTimeout(() => setErrorMsg(null), 4000);
+      return;
+    }
+
+    const synth = window.speechSynthesis;
+
+    // Toggle Logic: If clicking the same item, stop it.
+    if (speakingId === scam.id) {
+      synth.cancel();
+      setSpeakingId(null);
+      return;
+    }
+
+    // Stop any currently playing speech before starting new one
+    synth.cancel();
+    
+    const text = `Cảnh báo lừa đảo dạng ${scam.type}. ${scam.title}. ${scam.description}`;
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Voice Selection Logic: Robustly try to find a Vietnamese voice
+    // Ensure we have the latest list of voices
+    let availableVoices = voices;
+    if (availableVoices.length === 0) {
+        availableVoices = synth.getVoices();
+    }
+
+    // Priority: exact 'vi-VN', then starts with 'vi', then includes 'Viet'
+    const vnVoice = availableVoices.find(v => v.lang === 'vi-VN') || 
+                    availableVoices.find(v => v.lang.startsWith('vi')) ||
+                    availableVoices.find(v => v.name.includes('Viet'));
+
+    if (vnVoice) {
+        utterance.voice = vnVoice;
+        console.log("Using voice:", vnVoice.name);
+    } else {
+        console.warn("Vietnamese voice not found. Using default.");
+        // Try to force lang even if voice obj not found
+        utterance.lang = 'vi-VN';
+        
+        // Notify user if no Vietnamese voice might be available
+        if (!availableVoices.some(v => v.lang.startsWith('vi'))) {
+             setErrorMsg("Máy chưa cài giọng đọc Tiếng Việt. Vui lòng kiểm tra cài đặt ngôn ngữ.");
+             setTimeout(() => setErrorMsg(null), 5000);
+        }
+    }
+    
+    utterance.rate = 0.9; // Slightly slower for clarity
+    utterance.pitch = 1.0;
+    
+    utterance.onstart = () => setSpeakingId(scam.id);
+    utterance.onend = () => setSpeakingId(null);
+    
+    utterance.onerror = (event) => {
+        setSpeakingId(null);
+        // Don't report error if it was just canceled by the user (interrupted)
+        if (event.error !== 'interrupted' && event.error !== 'canceled') {
+            console.error("TTS Error:", event);
+            setErrorMsg("Không thể phát âm thanh. Vui lòng kiểm tra âm lượng.");
+            setTimeout(() => setErrorMsg(null), 3000);
+        }
+    };
+    
+    synth.speak(utterance);
+  };
+
   const getIcon = (type: string) => {
+    const size = isSeniorMode ? 40 : 20;
     switch (type) {
       case 'Deepfake':
-        return <ShieldAlert size={20} className="text-red-500" />;
+        return <ShieldAlert size={size} className="text-red-600" />;
       case 'Giả danh':
-        return <Banknote size={20} className="text-blue-500" />;
+        return <Banknote size={size} className="text-blue-600" />;
       case 'Đầu tư':
-        return <Zap size={20} className="text-yellow-500" />;
+        return <Zap size={size} className="text-yellow-600" />;
       case 'Tình cảm':
-        return <Heart size={20} className="text-pink-500" />;
+        return <Heart size={size} className="text-pink-600" />;
       default:
-        return <AlertTriangle size={20} className="text-slate-500" />;
+        return <AlertTriangle size={size} className="text-slate-600" />;
     }
   };
 
   return (
-    <div className="p-6 pt-20 md:pt-10 pb-32 min-h-screen max-w-4xl mx-auto bg-[#F8FAFC] animate-in fade-in duration-300">
-      <div className="flex justify-between items-end mb-8 border-b border-slate-200 pb-6">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-900 mb-2 flex items-center gap-2">
-            <BookOpen size={30} className="text-blue-600" /> Thư Viện Cảnh Báo
-          </h2>
-          <p className="text-slate-500 text-base">Hệ thống AI tổng hợp các thủ đoạn lừa đảo phổ biến và mới nhất.</p>
+    <div className={`p-4 md:p-6 pt-20 md:pt-10 pb-32 min-h-screen max-w-4xl mx-auto animate-in fade-in duration-300 ${isSeniorMode ? 'bg-slate-50' : 'bg-[#F8FAFC]'}`}>
+      
+      {/* Toast Notification for Errors */}
+      {errorMsg && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[110] bg-red-600 text-white px-6 py-3 rounded-full shadow-xl font-bold flex items-center gap-2 animate-in slide-in-from-top-2">
+            <XCircle size={20} /> {errorMsg}
         </div>
+      )}
+
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 border-b-2 border-slate-200 pb-6 gap-4">
+        <div>
+          <h2 className={`${isSeniorMode ? 'text-3xl md:text-4xl' : 'text-3xl'} font-black text-slate-900 mb-2 flex items-center gap-2`}>
+            <BookOpen size={isSeniorMode ? 48 : 32} className="text-blue-600" /> 
+            {isSeniorMode ? 'CÁC CHIÊU LỪA ĐẢO' : 'Thư Viện Cảnh Báo'}
+          </h2>
+          <p className={`${isSeniorMode ? 'text-lg md:text-xl font-medium' : 'text-base'} text-slate-500`}>
+            {isSeniorMode ? 'Danh sách các thủ đoạn kẻ xấu hay dùng. Bác bấm vào để nghe.' : 'Hệ thống AI tổng hợp các thủ đoạn lừa đảo phổ biến và mới nhất.'}
+          </p>
+        </div>
+        
+        {isSeniorMode && onOpenTutorial && (
+            <button 
+                onClick={onOpenTutorial}
+                className="w-full md:w-auto bg-purple-600 hover:bg-purple-700 text-white px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all"
+            >
+                <PlayCircle size={32} />
+                <span className="text-xl">HƯỚNG DẪN</span>
+            </button>
+        )}
       </div>
 
-      {/* Action Button and Status */}
-      <div className="flex justify-between items-center mb-6 p-4 bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="text-sm text-slate-500 font-medium">
-          Cập nhật lần cuối: {lastUpdated}
+      {/* SEARCH/REFRESH BAR */}
+      <div className={`flex justify-between items-center mb-6 p-4 bg-white rounded-2xl shadow-sm border ${isSeniorMode ? 'border-slate-300 p-6' : 'border-slate-200'}`}>
+        <div className={`text-slate-500 font-bold ${isSeniorMode ? 'text-base' : 'text-sm'}`}>
+          Cập nhật lúc: {lastUpdated}
         </div>
         <button
           onClick={fetchNewScams}
           disabled={isLoading}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center gap-2 transition-all disabled:opacity-70 shadow-sm"
+          className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2 transition-all disabled:opacity-70 shadow-md active:scale-95 ${isSeniorMode ? 'text-lg px-8 py-4' : ''}`}
         >
           {isLoading ? (
-            <RefreshCw size={16} className="animate-spin" />
+            <RefreshCw size={isSeniorMode ? 28 : 18} className="animate-spin" />
           ) : (
-            <Zap size={16} />
+            <Zap size={isSeniorMode ? 28 : 18} />
           )}
-          {isLoading ? 'Đang tìm...' : 'Tìm Thủ Đoạn Mới'}
+          {isLoading ? 'Đang tải...' : (isSeniorMode ? 'TÌM MỚI' : 'Tìm Mới')}
         </button>
       </div>
 
-      {/* Scam List */}
-      <div className="space-y-4">
+      {/* SCAM LIST */}
+      <div className="space-y-6">
         {scams.map((scam) => (
           <div 
             key={scam.id} 
-            className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all relative"
+            onClick={() => isSeniorMode && speak(scam)} // Tap anywhere to speak in senior mode
+            className={`bg-white rounded-3xl shadow-sm hover:shadow-lg transition-all relative overflow-hidden group cursor-pointer ${
+                isSeniorMode ? 'border-4 border-slate-200 p-6 active:bg-blue-50' : 'border border-slate-200 p-5'
+            }`}
           >
-             <div className={`absolute top-0 right-4 translate-y-[-50%] text-white text-xs font-bold px-3 py-1 rounded-full shadow-md uppercase ${
+             {/* Risk Badge */}
+             <div className={`absolute top-0 right-0 rounded-bl-2xl text-white font-bold uppercase tracking-wide shadow-sm flex items-center gap-1 ${
                scam.risk === 'Cao' ? 'bg-red-600' : scam.risk === 'Trung bình' ? 'bg-amber-500' : 'bg-blue-600'
-             }`}>
+             } ${isSeniorMode ? 'text-lg px-6 py-2' : 'text-xs px-3 py-1'}`}>
+                <AlertTriangle size={isSeniorMode ? 20 : 12} fill="currentColor" />
                 {scam.risk}
              </div>
 
-            <div className="flex items-start gap-4 mb-3">
-              <div className="w-10 h-10 flex-shrink-0 bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100">
+            <div className="flex flex-col md:flex-row md:items-start gap-4 mb-3 pt-8 md:pt-0">
+              {/* Icon */}
+              <div className={`flex-shrink-0 bg-slate-100 rounded-2xl flex items-center justify-center border-2 border-slate-200 ${isSeniorMode ? 'w-20 h-20' : 'w-12 h-12'}`}>
                 {getIcon(scam.type)}
               </div>
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">{scam.type}</span>
-                <h3 className="text-xl font-bold text-slate-900 mt-0.5">{scam.title}</h3>
+
+              {/* Title & Type */}
+              <div className="flex-1 pr-4">
+                <span className={`font-bold text-slate-500 uppercase tracking-wide block mb-1 ${isSeniorMode ? 'text-base' : 'text-xs'}`}>
+                    {scam.type}
+                </span>
+                <h3 className={`font-black text-slate-900 leading-tight ${isSeniorMode ? 'text-2xl md:text-3xl' : 'text-xl'}`}>
+                    {scam.title}
+                </h3>
               </div>
+              
+              {/* READ ALOUD BUTTON (Specific for Seniors) */}
+              {isSeniorMode && (
+                  <button 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        speak(scam);
+                    }}
+                    className={`flex-shrink-0 w-full md:w-auto px-6 py-4 rounded-2xl border-2 flex items-center justify-center gap-3 transition-all shadow-md active:scale-95 mt-4 md:mt-0 ${
+                        speakingId === scam.id 
+                        ? 'bg-red-100 border-red-500 text-red-700 animate-pulse' 
+                        : 'bg-white border-blue-600 text-blue-700 hover:bg-blue-50'
+                    }`}
+                  >
+                      {speakingId === scam.id ? <StopCircle size={32} /> : <Volume2 size={32} />}
+                      <span className="font-bold text-xl uppercase">
+                          {speakingId === scam.id ? 'Dừng Lại' : 'Đọc Nghe'}
+                      </span>
+                  </button>
+              )}
             </div>
             
-            <p className="text-slate-700 leading-relaxed mb-4">
+            <p className={`text-slate-700 leading-relaxed mb-4 mt-2 ${isSeniorMode ? 'text-xl font-medium' : 'text-base'}`}>
               {scam.description}
             </p>
             
-            <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
-              <span className="text-xs font-bold text-red-600 mr-2 uppercase tracking-wide py-1">Từ khóa:</span>
+            <div className="flex flex-wrap gap-2 pt-4 border-t-2 border-slate-100">
+              <span className={`font-bold text-red-600 mr-2 uppercase tracking-wide py-1 flex items-center gap-1 ${isSeniorMode ? 'text-base' : 'text-xs'}`}>
+                  <Zap size={16} /> Dấu hiệu:
+              </span>
               {scam.keywords.map((kw, idx) => (
-                <span key={idx} className="bg-red-50 text-red-600 text-xs font-medium px-2 py-1 rounded-md border border-red-100">
+                <span key={idx} className={`bg-red-50 text-red-700 font-bold rounded-lg border border-red-100 ${isSeniorMode ? 'text-base px-3 py-1.5' : 'text-xs px-2 py-1'}`}>
                   {kw}
                 </span>
               ))}

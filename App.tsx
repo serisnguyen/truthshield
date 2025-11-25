@@ -1,21 +1,25 @@
+
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { 
   Shield, Users, MessageSquareText, 
-  ScanFace, Activity, Bot, PlayCircle, UserCircle, BookOpen, Loader2
+  ScanFace, Bot, PlayCircle, UserCircle, BookOpen, Loader2, Phone, BellRing, Wifi, WifiOff
 } from 'lucide-react';
 import AlertOverlay from './components/AlertOverlay';
 import TutorialModal from './components/TutorialModal';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import RoleSelectionScreen from './components/RoleSelectionScreen';
+import SOSReceiveModal from './components/SOSReceiveModal';
 
-// Lazy Load Components for Performance
+// Lazy Load Components
 const HomeScreen = lazy(() => import('./components/HomeScreen'));
 const FamilyScreen = lazy(() => import('./components/FamilyScreen'));
 const MessageGuard = lazy(() => import('./components/MessageGuard'));
 const ChatScreen = lazy(() => import('./components/ChatScreen'));
 const ProfileScreen = lazy(() => import('./components/ProfileScreen'));
 const ScamLibraryScreen = lazy(() => import('./components/ScamLibraryScreen'));
+const CallHistoryScreen = lazy(() => import('./components/CallHistoryScreen'));
 
-export type Tab = 'home' | 'message' | 'family' | 'chat' | 'profile' | 'library';
+export type Tab = 'home' | 'message' | 'family' | 'chat' | 'profile' | 'library' | 'history';
 
 const LoadingFallback = () => (
   <div className="flex-1 flex flex-col items-center justify-center h-full bg-[#F8FAFC]">
@@ -24,34 +28,34 @@ const LoadingFallback = () => (
   </div>
 );
 
+const NetworkStatus = () => {
+    const { isOnline, isSeniorMode } = useAuth();
+    if (isOnline) return null;
+    
+    return (
+        <div className={`fixed top-0 left-0 right-0 z-[60] bg-red-600 text-white flex items-center justify-center gap-2 shadow-md animate-in slide-in-from-top duration-300 ${isSeniorMode ? 'h-12 text-lg' : 'h-8 text-xs font-bold'}`}>
+            <WifiOff size={isSeniorMode ? 24 : 14} />
+            <span>Mất kết nối Internet. Vui lòng kiểm tra đường truyền.</span>
+        </div>
+    );
+};
+
 const AppContent: React.FC = () => {
+  const { role, isLoading, incomingSOS, isSeniorMode } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showAlert, setShowAlert] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  useEffect(() => {
-    let timeoutId: any;
-    const handleResize = () => {
-      // Debounce resize event
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        setIsMobile(window.innerWidth < 768);
-      }, 150);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      clearTimeout(timeoutId);
-    };
-  }, []);
+  // If loading or no role selected, handle those states
+  if (isLoading) return <LoadingFallback />;
+  if (!role) return <RoleSelectionScreen />;
 
   const triggerAlert = () => setShowAlert(true);
 
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
-        return <HomeScreen onTriggerAlert={triggerAlert} />;
+        return <HomeScreen onTriggerAlert={triggerAlert} onNavigate={setActiveTab} />;
       case 'message':
         return <MessageGuard />;
       case 'family':
@@ -61,167 +65,165 @@ const AppContent: React.FC = () => {
       case 'profile':
         return <ProfileScreen />;
       case 'library':
-        return <ScamLibraryScreen />;
+        return <ScamLibraryScreen onOpenTutorial={() => setShowTutorial(true)} />;
+      case 'history':
+        return <CallHistoryScreen onBack={() => setActiveTab('home')} />;
       default:
-        return <HomeScreen onTriggerAlert={triggerAlert} />;
+        return <HomeScreen onTriggerAlert={triggerAlert} onNavigate={setActiveTab} />;
     }
   };
 
+  // --- ELDER INTERFACE (Simplified) ---
+  if (role === 'elder') {
+      return (
+        <div className="min-h-screen bg-slate-50 font-sans flex flex-col h-screen overflow-hidden">
+             <NetworkStatus />
+             {/* Simple Top Bar */}
+             <div className="h-16 bg-white border-b-4 border-yellow-400 flex items-center justify-between px-4 shrink-0 shadow-sm z-20 mt-safe">
+                <div className="flex items-center gap-2">
+                    <Shield className="text-blue-600 fill-blue-600" size={28} />
+                    <span className="text-xl font-black text-slate-800">TruthShield</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">Chế độ Người Cao Tuổi</span>
+                </div>
+             </div>
+
+             {/* Main Content */}
+             <main className="flex-1 overflow-y-auto relative bg-slate-50 pb-28">
+                 <Suspense fallback={<LoadingFallback />}>
+                    {renderContent()}
+                 </Suspense>
+             </main>
+
+             {/* BIG BUTTON BOTTOM NAV FOR ELDERS */}
+             <div className="fixed bottom-0 left-0 right-0 h-24 bg-white border-t-2 border-slate-200 shadow-[0_-5px_20px_rgba(0,0,0,0.1)] flex items-stretch z-30">
+                 <ElderNavButton 
+                    key="home"
+                    icon={<ScanFace size={24} />} 
+                    label="Trang Chủ" 
+                    isActive={activeTab === 'home'} 
+                    onClick={() => setActiveTab('home')}
+                    color="blue"
+                 />
+                 <ElderNavButton 
+                    key="message"
+                    icon={<MessageSquareText size={24} />} 
+                    label="Tin Nhắn" 
+                    isActive={activeTab === 'message'} 
+                    onClick={() => setActiveTab('message')}
+                    color="pink"
+                 />
+                 <ElderNavButton 
+                    key="library"
+                    icon={<BookOpen size={24} />} 
+                    label="Thư Viện" 
+                    isActive={activeTab === 'library'} 
+                    onClick={() => setActiveTab('library')}
+                    color="orange"
+                 />
+                 <ElderNavButton 
+                    key="family"
+                    icon={<Users size={24} />} 
+                    label="Kết Nối" 
+                    isActive={activeTab === 'family'} 
+                    onClick={() => setActiveTab('family')}
+                    color="green"
+                 />
+                 <ElderNavButton 
+                    key="chat"
+                    icon={<Bot size={24} />} 
+                    label="Trợ Lý" 
+                    isActive={activeTab === 'chat'} 
+                    onClick={() => setActiveTab('chat')}
+                    color="purple"
+                 />
+                 <ElderNavButton 
+                    key="profile"
+                    icon={<UserCircle size={24} />} 
+                    label="Cài Đặt" 
+                    isActive={activeTab === 'profile'} 
+                    onClick={() => setActiveTab('profile')}
+                    color="slate"
+                 />
+             </div>
+             
+             {/* Global Overlays */}
+             {showAlert && <AlertOverlay onClose={() => setShowAlert(false)} />}
+             {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
+             {incomingSOS && <SOSReceiveModal />}
+        </div>
+      );
+  }
+
+  // --- RELATIVE INTERFACE (Full Features) ---
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans flex overflow-hidden">
-      
-      {/* --- SIDEBAR (Desktop/Tablet) --- */}
-      <aside className="hidden md:flex w-20 lg:w-72 flex-col border-r border-slate-200 bg-white z-30 transition-all duration-300 shadow-sm">
+      <NetworkStatus />
+      {/* Sidebar for Desktop */}
+      <aside className="hidden md:flex w-20 lg:w-72 flex-col border-r border-slate-200 bg-white z-30 transition-all duration-300 shadow-sm mt-safe">
         <div className="h-24 flex items-center justify-center lg:justify-start lg:px-8 border-b border-slate-100">
           <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-200">
             <Shield className="w-8 h-8 text-white" fill="currentColor" />
           </div>
           <div className="hidden lg:block ml-4">
             <h1 className="font-bold text-xl tracking-wide text-slate-900">TruthShield</h1>
-            <p className="text-xs text-slate-500 font-medium">Bảo Vệ Gia Đình</p>
+            <p className="text-xs text-slate-500 font-medium">Người Quản Lý</p>
           </div>
         </div>
 
         <nav className="flex-1 py-8 space-y-2 px-4">
-          <NavSideItem 
-            icon={<ScanFace size={24} />} 
-            label="Trang Chủ" 
-            description="Quét & Giám sát"
-            isActive={activeTab === 'home'} 
-            onClick={() => setActiveTab('home')} 
-          />
-          <NavSideItem 
-            icon={<Bot size={24} />} 
-            label="Hỏi Đáp AI" 
-            description="Trợ lý ảo hỗ trợ"
-            isActive={activeTab === 'chat'} 
-            onClick={() => setActiveTab('chat')} 
-          />
-          <NavSideItem 
-            icon={<Users size={24} />} 
-            label="Người Thân" 
-            description="Kết nối gia đình"
-            isActive={activeTab === 'family'} 
-            onClick={() => setActiveTab('family')} 
-          />
-          <NavSideItem 
-            icon={<MessageSquareText size={24} />} 
-            label="Kiểm Tra Tin Nhắn" 
-            description="Phân tích lừa đảo"
-            isActive={activeTab === 'message'} 
-            onClick={() => setActiveTab('message')} 
-          />
-          <NavSideItem 
-            icon={<BookOpen size={24} />} 
-            label="Thư Viện Cảnh Báo" 
-            description="Tìm hiểu thủ đoạn mới"
-            isActive={activeTab === 'library'} 
-            onClick={() => setActiveTab('library')} 
-          />
-          <NavSideItem 
-            icon={<UserCircle size={24} />} 
-            label="Cá Nhân" 
-            description="Tài khoản & Cài đặt"
-            isActive={activeTab === 'profile'} 
-            onClick={() => setActiveTab('profile')} 
-          />
-           <div className="pt-4 border-t border-slate-100 mt-4">
-            <NavSideItem 
-              icon={<PlayCircle size={24} />} 
-              label="Hướng Dẫn Sử Dụng" 
-              description="Video hướng dẫn"
-              isActive={false} 
-              onClick={() => setShowTutorial(true)} 
-            />
-           </div>
-        </nav>
-
-        <div className="p-6 border-t border-slate-100">
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center lg:text-left flex items-center gap-3">
-               <div className="relative flex h-3 w-3 flex-shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-               </div>
-               <div>
-                  <span className="block text-sm font-bold text-slate-700">Đang hoạt động</span>
-                  <p className="hidden lg:block text-xs text-slate-500">Phiên bản mới nhất</p>
-               </div>
+          <NavSideItem icon={<Shield size={isSeniorMode ? 28 : 24} />} label="Tổng Quan" description="Theo dõi thiết bị" isActive={activeTab === 'home'} onClick={() => setActiveTab('home')} isSenior={isSeniorMode} />
+          <NavSideItem icon={<Users size={isSeniorMode ? 28 : 24} />} label="Gia Đình" description="Quản lý kết nối" isActive={activeTab === 'family'} onClick={() => setActiveTab('family')} isSenior={isSeniorMode} />
+          <NavSideItem icon={<MessageSquareText size={isSeniorMode ? 28 : 24} />} label="Kiểm Tra Tin" description="Phân tích lừa đảo" isActive={activeTab === 'message'} onClick={() => setActiveTab('message')} isSenior={isSeniorMode} />
+          <NavSideItem icon={<BookOpen size={isSeniorMode ? 28 : 24} />} label="Thư Viện" description="Kiến thức lừa đảo" isActive={activeTab === 'library'} onClick={() => setActiveTab('library')} isSenior={isSeniorMode} />
+          <NavSideItem icon={<Bot size={isSeniorMode ? 28 : 24} />} label="Trợ Lý AI" description="Hỏi đáp thông minh" isActive={activeTab === 'chat'} onClick={() => setActiveTab('chat')} isSenior={isSeniorMode} />
+          <NavSideItem icon={<UserCircle size={isSeniorMode ? 28 : 24} />} label="Cá Nhân" description="Tài khoản" isActive={activeTab === 'profile'} onClick={() => setActiveTab('profile')} isSenior={isSeniorMode} />
+          
+          <div className="pt-4 border-t border-slate-100 mt-4">
+            <NavSideItem icon={<PlayCircle size={isSeniorMode ? 28 : 24} />} label="Hướng Dẫn" isActive={false} onClick={() => setShowTutorial(true)} isSenior={isSeniorMode} />
           </div>
-        </div>
+        </nav>
       </aside>
 
-      {/* --- MAIN CONTENT AREA --- */}
+      {/* Main Content Area */}
       <main className="flex-1 relative flex flex-col h-screen overflow-hidden bg-[#F8FAFC]">
-        
         {/* Mobile Header */}
-        <div className="md:hidden h-16 flex items-center justify-between px-4 bg-white/90 backdrop-blur-sm border-b border-slate-200 absolute top-0 left-0 right-0 z-20 shadow-sm">
+        <div className="md:hidden h-16 flex items-center justify-between px-4 bg-white/90 backdrop-blur-sm border-b border-slate-200 absolute top-0 left-0 right-0 z-20 shadow-sm mt-safe">
            <div className="flex items-center gap-3">
               <div className="bg-blue-600 p-1.5 rounded-lg shadow-sm">
                 <Shield className="w-5 h-5 text-white" fill="currentColor" />
               </div>
-              <span className="text-lg font-bold text-slate-800 tracking-tight">TruthShield</span>
+              <span className="text-lg font-bold text-slate-800 tracking-tight">Người Quản Lý</span>
            </div>
-           <button 
-            onClick={() => setShowTutorial(true)}
-            className="px-3 py-2 bg-slate-100 rounded-full border border-slate-200 flex items-center gap-2 text-sm font-semibold text-slate-600 active:bg-slate-200 transition-all active:scale-95"
-           >
-              <PlayCircle size={18} className="text-blue-600" /> Hướng dẫn
+           <button onClick={() => setShowTutorial(true)} className="p-2 text-slate-500">
+              <PlayCircle size={24} />
            </button>
         </div>
 
-        {/* Content Wrapper */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar relative pb-28 md:pb-0">
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar relative pb-24 md:pb-0 mt-16 md:mt-0">
           <Suspense fallback={<LoadingFallback />}>
             {renderContent()}
           </Suspense>
         </div>
 
-        {/* Mobile Bottom Dock (Floating) */}
+        {/* Mobile Dock for Guardian - Updated with Chat Button */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 p-4 bg-gradient-to-t from-[#F8FAFC] via-[#F8FAFC] to-transparent pb-6">
           <div className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-2xl px-2 py-2 shadow-xl shadow-slate-200/50 flex justify-between items-center">
-            <NavButton 
-              icon={<ScanFace size={26} />} 
-              label="Quét" 
-              isActive={activeTab === 'home'} 
-              onClick={() => setActiveTab('home')} 
-            />
-            <NavButton 
-              icon={<Bot size={26} />} 
-              label="Hỏi Đáp" 
-              isActive={activeTab === 'chat'} 
-              onClick={() => setActiveTab('chat')} 
-            />
-            <NavButton 
-              icon={<Users size={26} />} 
-              label="Gia Đình" 
-              isActive={activeTab === 'family'} 
-              onClick={() => setActiveTab('family')} 
-            />
-            <NavButton 
-              icon={<MessageSquareText size={26} />} 
-              label="Tin Nhắn" 
-              isActive={activeTab === 'message'} 
-              onClick={() => setActiveTab('message')} 
-            />
-            <NavButton 
-              icon={<BookOpen size={26} />} 
-              label="Thư Viện" 
-              isActive={activeTab === 'library'} 
-              onClick={() => setActiveTab('library')} 
-            />
-            <NavButton 
-              icon={<UserCircle size={26} />} 
-              label="Cá Nhân" 
-              isActive={activeTab === 'profile'} 
-              onClick={() => setActiveTab('profile')} 
-            />
+            <NavButton icon={<Shield size={24} />} label="Home" isActive={activeTab === 'home'} onClick={() => setActiveTab('home')} isSenior={isSeniorMode} />
+            <NavButton icon={<Users size={24} />} label="Gia Đình" isActive={activeTab === 'family'} onClick={() => setActiveTab('family')} isSenior={isSeniorMode} />
+            <NavButton icon={<Bot size={24} />} label="Chat AI" isActive={activeTab === 'chat'} onClick={() => setActiveTab('chat')} isSenior={isSeniorMode} />
+            <NavButton icon={<MessageSquareText size={24} />} label="Tin Nhắn" isActive={activeTab === 'message'} onClick={() => setActiveTab('message')} isSenior={isSeniorMode} />
+            <NavButton icon={<BookOpen size={24} />} label="Thư Viện" isActive={activeTab === 'library'} onClick={() => setActiveTab('library')} isSenior={isSeniorMode} />
+            <NavButton icon={<UserCircle size={24} />} label="Cá Nhân" isActive={activeTab === 'profile'} onClick={() => setActiveTab('profile')} isSenior={isSeniorMode} />
           </div>
         </div>
       </main>
 
-      {/* Global Overlays */}
       {showAlert && <AlertOverlay onClose={() => setShowAlert(false)} />}
       {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
+      {incomingSOS && <SOSReceiveModal />}
     </div>
   );
 };
@@ -234,17 +236,32 @@ const App: React.FC = () => {
   );
 }
 
-// --- Sub Components ---
+// --- Components ---
 
-interface NavButtonProps {
-  icon: React.ReactNode;
-  label: string;
-  description?: string;
-  isActive: boolean;
-  onClick: () => void;
-}
+const ElderNavButton = React.memo(({ icon, label, isActive, onClick, color }: any) => {
+    const colorClasses = {
+        blue: 'text-blue-600 bg-blue-50',
+        green: 'text-green-600 bg-green-50',
+        purple: 'text-purple-600 bg-purple-50',
+        slate: 'text-slate-600 bg-slate-50',
+        orange: 'text-orange-600 bg-orange-50',
+        pink: 'text-pink-600 bg-pink-50'
+    };
+    
+    return (
+        <button 
+            onClick={onClick}
+            className={`flex-1 flex flex-col items-center justify-center transition-all ${isActive ? 'bg-slate-100' : 'bg-white'}`}
+        >
+            <div className={`p-1.5 rounded-xl mb-0.5 ${isActive ? (colorClasses[color as keyof typeof colorClasses] || 'bg-slate-200') : 'text-slate-400'}`}>
+                {icon}
+            </div>
+            <span className={`text-[10px] font-bold ${isActive ? 'text-slate-900' : 'text-slate-400'}`}>{label}</span>
+        </button>
+    )
+});
 
-const NavButton: React.FC<NavButtonProps> = ({ icon, label, isActive, onClick }) => (
+const NavButton = React.memo(({ icon, label, isActive, onClick, isSenior }: any) => (
   <button 
     onClick={onClick}
     className={`relative flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all duration-300 active:scale-90 ${
@@ -256,31 +273,30 @@ const NavButton: React.FC<NavButtonProps> = ({ icon, label, isActive, onClick })
     }`}>
       {icon}
     </div>
-    <span className={`text-[10px] font-bold mt-0.5 transition-opacity duration-300 ${isActive ? 'opacity-100 text-blue-700' : 'opacity-60'}`}>
+    <span className={`${isSenior ? 'text-xs' : 'text-[10px]'} font-bold mt-0.5 transition-opacity duration-300 ${isActive ? 'opacity-100 text-blue-700' : 'opacity-60'}`}>
       {label}
     </span>
   </button>
-);
+));
 
-const NavSideItem: React.FC<NavButtonProps> = ({ icon, label, description, isActive, onClick }) => (
+const NavSideItem = React.memo(({ icon, label, description, isActive, onClick, isSenior }: any) => (
   <button 
     onClick={onClick}
     className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden ${
       isActive 
         ? 'bg-blue-50 text-blue-700 shadow-sm' 
         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-    }`}
+    } ${isSenior ? 'py-5' : 'py-3'}`}
   >
     {isActive && <div className="absolute left-0 top-2 bottom-2 w-1 bg-blue-600 rounded-r-full"></div>}
-    
     <div className={`${isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'}`}>
       {icon}
     </div>
     <div className="hidden lg:block text-left">
-      <span className="block font-bold text-base">{label}</span>
-      <span className={`block text-sm ${isActive ? 'text-blue-600/80' : 'text-slate-400'}`}>{description}</span>
+      <span className={`block font-bold ${isSenior ? 'text-lg' : 'text-base'}`}>{label}</span>
+      <span className={`block ${isSenior ? 'text-base' : 'text-sm'} ${isActive ? 'text-blue-600/80' : 'text-slate-400'}`}>{description}</span>
     </div>
   </button>
-);
+));
 
 export default App;

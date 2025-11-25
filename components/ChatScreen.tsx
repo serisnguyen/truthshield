@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, ShieldAlert, Loader2 } from 'lucide-react';
+import { Send, Bot, User, ShieldAlert, Loader2, MapPin } from 'lucide-react';
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 import { useAuth } from '../context/AuthContext';
 import { sanitizeInput } from '../services/aiService';
@@ -11,10 +11,11 @@ interface Message {
   text: string;
   isWarning?: boolean;
   isStreaming?: boolean;
+  groundingMetadata?: any; // To store map data
 }
 
 const ChatScreen: React.FC = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,25 +39,37 @@ const ChatScreen: React.FC = () => {
           
           if (apiKey) {
             const ai = new GoogleGenAI({ apiKey });
-            const userName = user ? user.name : "Bác/Cô/Chú";
+            const userName = user ? user.name : (role === 'elder' ? "Bác/Cô/Chú" : "Bạn");
             
+            // Customize Instruction based on Role
+            const systemInstruction = role === 'elder' 
+                ? `Bạn là trợ lý an ninh TruthShield. Tên người dùng: ${userName}.
+                   Hãy trả lời ngắn gọn, dễ hiểu cho người cao tuổi.
+                   Nhiệm vụ: Phân tích lừa đảo, đưa ra lời khuyên bảo mật, và tìm vị trí (đồn công an, bệnh viện) nếu được hỏi.`
+                : `Bạn là trợ lý an ninh TruthShield chuyên sâu. Tên người dùng: ${userName}.
+                   Bạn đang hỗ trợ người quản lý (con cái/người thân) bảo vệ gia đình.
+                   Nhiệm vụ: Cung cấp kiến thức bảo mật chuyên sâu, cách xử lý sự cố khi cha mẹ gặp lừa đảo, giải thích các thủ đoạn công nghệ cao, và tìm kiếm địa điểm an toàn gần đây.`;
+
             chatSessionRef.current = ai.chats.create({
                 model: "gemini-2.5-flash",
-                config: {
-                    systemInstruction: `Bạn là trợ lý an ninh TruthShield. Tên người dùng: ${userName}.
-                    Hãy trả lời ngắn gọn, dễ hiểu cho người cao tuổi.
-                    Nhiệm vụ: Phân tích lừa đảo, đưa ra lời khuyên bảo mật.`,
+                config: { 
+                  systemInstruction,
+                  tools: [{ googleMaps: {} }], // ENABLE MAPS GROUNDING
                 },
             });
           } else {
             console.warn("Chat initialized in offline mode (No API Key)");
           }
 
-          // Set initial greeting
+          // Set initial greeting based on Role
+          const greeting = role === 'elder'
+            ? `Xin chào ${user ? user.name : "Bác"}! Cháu là trợ lý an ninh. Bác có tin nhắn lạ hay cần tìm đường đến đồn công an không ạ?`
+            : `Chào ${user ? user.name : "bạn"}! Tôi là trợ lý an ninh gia đình. Tôi có thể giúp gì để bảo vệ người thân của bạn hôm nay?`;
+
           setMessages([{ 
             id: 'init', 
             role: 'model', 
-            text: `Xin chào ${user ? user.name : "Bác"}! Cháu là trợ lý an ninh. Bác có tin nhắn hay cuộc gọi lạ nào cần kiểm tra không ạ?`,
+            text: greeting,
             isWarning: false
           }]);
 
@@ -65,7 +78,7 @@ const ChatScreen: React.FC = () => {
           setMessages([{ 
             id: 'err-init', 
             role: 'model', 
-            text: "Hệ thống đang bảo trì. Bác vui lòng thử lại sau nhé.", 
+            text: "Hệ thống đang bảo trì. Vui lòng thử lại sau.", 
             isWarning: true
           }]);
       }
@@ -77,7 +90,7 @@ const ChatScreen: React.FC = () => {
     return () => {
         chatSessionRef.current = null;
     };
-  }, [user]);
+  }, [user, role]);
 
   const handleSend = async (textInput?: string) => {
     const rawText = textInput || input;
@@ -98,7 +111,9 @@ const ChatScreen: React.FC = () => {
              setMessages(prev => [...prev, {
                  id: 'mock-' + Date.now(),
                  role: 'model',
-                 text: "Chế độ Offline: Cháu chưa kết nối được với máy chủ. Nhưng nếu bác thấy tin nhắn yêu cầu chuyển tiền, hãy gọi điện trực tiếp cho người thân để kiểm tra nhé!",
+                 text: role === 'elder' 
+                    ? "Chế độ Offline: Cháu chưa kết nối được với máy chủ. Nhưng nếu bác thấy tin nhắn yêu cầu chuyển tiền, hãy gọi điện trực tiếp cho người thân để kiểm tra nhé!"
+                    : "Chế độ Offline: Không thể kết nối AI. Vui lòng kiểm tra lại các thiết bị kết nối thủ công.",
                  isWarning: true
              }]);
              setIsLoading(false);
@@ -119,17 +134,24 @@ const ChatScreen: React.FC = () => {
       });
 
       let fullText = '';
+      let groundingMetadata: any = null;
       
       for await (const chunk of result) {
         const chunkText = (chunk as GenerateContentResponse).text || '';
         fullText += chunkText;
+
+        // Check for Maps Grounding Metadata in the chunk
+        if (chunk.candidates?.[0]?.groundingMetadata) {
+            groundingMetadata = chunk.candidates[0].groundingMetadata;
+        }
         
         setMessages(prev => prev.map(msg => 
           msg.id === modelMsgId 
             ? { 
                 ...msg, 
                 text: fullText,
-                isWarning: /lừa đảo|cảnh báo|nguy hiểm|tuyệt đối không|chặn số|công an giả/i.test(fullText)
+                isWarning: /lừa đảo|cảnh báo|nguy hiểm|tuyệt đối không|chặn số|công an giả/i.test(fullText),
+                groundingMetadata: groundingMetadata || msg.groundingMetadata
               } 
             : msg
         ));
@@ -144,7 +166,7 @@ const ChatScreen: React.FC = () => {
       setMessages(prev => [...prev, { 
         id: 'err-' + Date.now(), 
         role: 'model', 
-        text: "Mạng đang yếu. Bác kiểm tra lại Wifi/4G giúp cháu nhé.", 
+        text: "Mạng đang yếu. Vui lòng kiểm tra lại kết nối.", 
         isWarning: true 
       }]);
     } finally {
@@ -174,7 +196,7 @@ const ChatScreen: React.FC = () => {
          </div>
          <div>
            <h2 className="text-slate-900 font-bold text-lg md:text-xl">Trợ Lý An Ninh</h2>
-           <p className="text-slate-500 text-xs font-medium">Hỏi đáp 24/7</p>
+           <p className="text-slate-500 text-xs font-medium">Hỏi đáp & Tìm kiếm (Maps)</p>
          </div>
       </div>
 
@@ -196,7 +218,7 @@ const ChatScreen: React.FC = () => {
             </div>
             
             {/* Bubble */}
-            <div className={`max-w-[80%] p-4 rounded-2xl text-base leading-relaxed shadow-sm ${
+            <div className={`max-w-[85%] p-4 rounded-2xl text-base leading-relaxed shadow-sm flex flex-col gap-2 ${
               msg.role === 'user' 
                 ? 'bg-blue-600 text-white rounded-tr-none' 
                 : msg.isWarning 
@@ -209,6 +231,34 @@ const ChatScreen: React.FC = () => {
                 </div>
               )}
               <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+              
+              {/* Display Map Grounding Sources if available */}
+              {msg.groundingMetadata?.groundingChunks && (
+                 <div className="mt-2 pt-2 border-t border-slate-100">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 mb-2 uppercase">
+                        <MapPin size={12} /> Nguồn bản đồ Google
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        {msg.groundingMetadata.groundingChunks.map((chunk: any, idx: number) => {
+                            if (chunk.web?.uri) {
+                                return (
+                                    <a key={idx} href={chunk.web.uri} target="_blank" rel="noopener noreferrer" className="bg-slate-50 hover:bg-slate-100 p-2 rounded-lg border border-slate-200 flex items-center gap-2 transition-colors">
+                                        <div className="w-8 h-8 bg-white rounded-md flex items-center justify-center border border-slate-100 shadow-sm text-blue-600 font-bold text-xs flex-shrink-0">
+                                            Map
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-sm font-bold text-blue-600 truncate">{chunk.web.title || "Vị trí trên bản đồ"}</div>
+                                            <div className="text-xs text-slate-400 truncate">{chunk.web.uri}</div>
+                                        </div>
+                                    </a>
+                                )
+                            }
+                            return null;
+                        })}
+                    </div>
+                 </div>
+              )}
+
               {msg.isStreaming && (
                  <span className="inline-block w-2 h-4 ml-1 bg-current opacity-50 animate-pulse align-middle">|</span>
               )}
@@ -237,10 +287,10 @@ const ChatScreen: React.FC = () => {
         {/* Quick Prompts - Horizontal Scroll */}
         {!isLoading && (
           <div className="flex gap-2 overflow-x-auto pb-3 mb-1 no-scrollbar px-1">
+             <SuggestionButton text={role === 'elder' ? "Đồn công an gần đây?" : "Thủ đoạn lừa đảo mới"} />
+             <SuggestionButton text={role === 'elder' ? "Công an gọi đòi tiền?" : "Tìm bệnh viện gần nhất"} />
+             <SuggestionButton text={role === 'elder' ? "Link lạ?" : "Cách chặn số rác"} />
              <SuggestionButton text="Kiểm tra tin nhắn" />
-             <SuggestionButton text="Công an gọi đòi tiền?" />
-             <SuggestionButton text="Link lạ?" />
-             <SuggestionButton text="Lừa đảo việc làm?" />
           </div>
         )}
 
@@ -250,7 +300,7 @@ const ChatScreen: React.FC = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Nhập câu hỏi..."
+            placeholder="Hỏi về lừa đảo hoặc tìm địa điểm..."
             disabled={isLoading}
             className="flex-1 bg-slate-100 text-slate-900 rounded-full py-3.5 pl-5 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-slate-300 focus:border-blue-500 transition-all text-base placeholder:text-slate-500 disabled:opacity-60 disabled:bg-slate-50 shadow-inner"
           />

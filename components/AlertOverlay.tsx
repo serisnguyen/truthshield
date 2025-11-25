@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { PhoneOff, ShieldAlert, HelpCircle, AlertTriangle, Lock, BrainCircuit, LocateFixed, Send, MessageSquareWarning } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -8,7 +7,7 @@ interface AlertOverlayProps {
 }
 
 const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
-  const { addAlertToHistory, user } = useAuth();
+  const { addAlertToHistory, user, isSeniorMode } = useAuth();
   const [riskScore, setRiskScore] = useState(0);
   const [challengeQuestion, setChallengeQuestion] = useState("");
   const [autoSMSStatus, setAutoSMSStatus] = useState<'sending' | 'sent' | 'idle'>('idle');
@@ -74,10 +73,15 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-red-600/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-[100] bg-red-600/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="alert-title"
+    >
       
       {/* Removed infinite shake animation for better accessibility/UX */}
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in duration-300 border-8 border-red-600">
+      <div className={`relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in duration-300 border-8 border-red-600 ${isSeniorMode ? 'max-w-xl' : ''}`}>
         
         {/* Header - High Contrast */}
         <div className="bg-red-600 p-8 text-center border-b-4 border-red-800 relative overflow-hidden">
@@ -87,7 +91,7 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
            <div className="flex items-center justify-center gap-3 mb-3 relative z-10">
              <AlertTriangle className="text-white w-16 h-16 animate-bounce" fill="currentColor" />
            </div>
-           <h1 className="text-4xl font-black text-white uppercase tracking-wider relative z-10 drop-shadow-md">CẢNH BÁO!</h1>
+           <h1 id="alert-title" className={`${isSeniorMode ? 'text-5xl' : 'text-4xl'} font-black text-white uppercase tracking-wider relative z-10 drop-shadow-md`}>CẢNH BÁO!</h1>
            <p className="text-white font-bold text-xl mt-2 relative z-10">Phát hiện dấu hiệu Lừa Đảo</p>
         </div>
 
@@ -99,7 +103,7 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
                     <div className="flex items-center gap-2 text-red-800 font-bold uppercase text-sm tracking-wider">
                         <BrainCircuit size={20} /> Độ rủi ro
                     </div>
-                    <div className="text-6xl font-black text-red-600 tracking-tighter leading-none mt-1">
+                    <div className={`${isSeniorMode ? 'text-7xl' : 'text-6xl'} font-black text-red-600 tracking-tighter leading-none mt-1`}>
                     {riskScore}%
                     </div>
                </div>
@@ -125,7 +129,7 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
                   HÃY HỎI CÂU NÀY
               </div>
               <div className="mt-4 text-center">
-                 <p className="text-slate-900 font-black text-2xl leading-tight">
+                 <p className={`text-slate-900 font-black leading-tight ${isSeniorMode ? 'text-3xl' : 'text-2xl'}`}>
                    "{challengeQuestion}"
                  </p>
                  <div className="w-full h-0.5 bg-red-200 my-4"></div>
@@ -139,17 +143,17 @@ const AlertOverlay: React.FC<AlertOverlayProps> = ({ onClose }) => {
            <div className="w-full space-y-4 pt-4">
               <button 
                 onClick={() => handleAction('block')}
-                className="w-full h-24 bg-red-600 hover:bg-red-700 text-white rounded-2xl flex items-center justify-center gap-4 shadow-xl shadow-red-200 transition-transform active:scale-95 group border-b-8 border-red-800 active:border-b-0 active:translate-y-2 touch-target"
+                className="w-full h-28 bg-red-600 hover:bg-red-700 text-white rounded-2xl flex items-center justify-center gap-4 shadow-xl shadow-red-200 transition-transform active:scale-95 group border-b-8 border-red-800 active:border-b-0 active:translate-y-2 touch-target"
               >
-                 <PhoneOff size={40} className="fill-current group-hover:animate-shake" />
-                 <span className="text-3xl font-black uppercase">TẮT MÁY NGAY</span>
+                 <PhoneOff size={48} className="fill-current group-hover:animate-shake" />
+                 <span className="text-4xl font-black uppercase">TẮT MÁY NGAY</span>
               </button>
 
               <button 
                 onClick={() => handleAction('dismiss')}
-                className="w-full h-16 bg-white border-4 border-slate-300 hover:bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center gap-2 transition-colors font-bold text-lg touch-target"
+                className={`w-full bg-white border-4 border-slate-300 hover:bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center gap-2 transition-colors font-bold touch-target ${isSeniorMode ? 'h-20 text-2xl' : 'h-16 text-lg'}`}
               >
-                 <Lock size={24} />
+                 <Lock size={isSeniorMode ? 32 : 24} />
                  Tôi biết người này (Bỏ qua)
               </button>
            </div>

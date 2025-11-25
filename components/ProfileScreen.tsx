@@ -3,23 +3,26 @@ import React, { useState, useEffect } from 'react';
 import { 
   User, Settings, LogOut, Bell, Shield, 
   ChevronRight, Smartphone, Lock, CreditCard, 
-  Eye, EyeOff, Loader2, KeyRound, Mic, FileText, X, CheckCircle2, Server, Save
+  Eye, EyeOff, Loader2, KeyRound, Mic, FileText, X, CheckCircle2, Server, Save, Accessibility, RefreshCw, AlertOctagon, Phone, MessageSquareText, Users
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import VoiceSetupModal from './VoiceSetupModal';
 import AlertHistoryScreen from './AlertHistoryScreen';
+import CallHistoryScreen from './CallHistoryScreen';
+import MessageHistoryScreen from './MessageHistoryScreen';
 
 interface ProfileScreenProps {
 }
 
 const ProfileScreen: React.FC<ProfileScreenProps> = () => {
-  const { user, login, register, logout, updateSecurityQuestions } = useAuth();
+  const { user, login, register, logout, updateSecurityQuestions, updateSOSMessage, isSeniorMode, toggleSeniorMode, role, setRole } = useAuth();
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
-  const [showPrivacyLog, setShowPrivacyLog] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showCallHistory, setShowCallHistory] = useState(false);
+  const [showMessageHistory, setShowMessageHistory] = useState(false);
 
   // Inputs
   const [phone, setPhone] = useState('');
@@ -33,439 +36,408 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   const [q2, setQ2] = useState('');
   const [q3, setQ3] = useState('');
 
+  // SOS Message
+  const [editingSOS, setEditingSOS] = useState(false);
+  const [sosMsg, setSosMsg] = useState('');
+
   useEffect(() => {
     if (user?.securityQuestions && user.securityQuestions.length >= 1) {
         setQ1(user.securityQuestions[0] || '');
         setQ2(user.securityQuestions[1] || '');
         setQ3(user.securityQuestions[2] || '');
     }
+    if (user?.sosMessage) {
+        setSosMsg(user.sosMessage);
+    }
   }, [user]);
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
-    
     try {
-      if (authMode === 'login') {
-        await login(phone, password);
-      } else {
-        await register(name, phone, password);
-      }
-    } catch (err) {
-      setError('Thông tin không hợp lệ hoặc lỗi hệ thống.');
+      await login(phone, password);
+    } catch (err: any) {
+      setError(err.toString());
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const saveSecurityQuestions = () => {
-    const questions = [q1, q2, q3].filter(q => q.trim() !== '');
-    if (questions.length > 0) {
-        updateSecurityQuestions(questions);
-        setEditingSecurity(false);
-        alert("Đã lưu bộ câu hỏi xác thực!");
-    } else {
-        alert("Vui lòng nhập ít nhất 1 câu hỏi.");
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+    try {
+      await register(name, phone, password);
+    } catch (err: any) {
+      setError(err.toString());
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // --- PRIVACY LOG MODAL ---
-  const PrivacyLogModal = () => (
-    <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
-        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <div className="flex items-center gap-2">
-             <div className="p-2 bg-green-100 rounded-lg text-green-600">
-                <Shield size={20} />
-             </div>
-             <div>
-                <h3 className="font-bold text-slate-800">Nhật Ký Riêng Tư</h3>
-                <p className="text-xs text-slate-500">Minh bạch xử lý dữ liệu</p>
-             </div>
-          </div>
-          <button onClick={() => setShowPrivacyLog(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
-            <X size={20} />
-          </button>
-        </div>
-        
-        <div className="p-6 overflow-y-auto space-y-6">
-           {/* Privacy Stats */}
-           <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                 <div className="text-xs text-slate-500 font-bold uppercase mb-1">Dữ liệu đã quét</div>
-                 <div className="text-2xl font-black text-slate-800">128 MB</div>
-                 <div className="text-xs text-slate-400 mt-1">Audio & Video</div>
-              </div>
-              <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
-                 <div className="text-xs text-blue-500 font-bold uppercase mb-1">Gửi lên máy chủ</div>
-                 <div className="text-2xl font-black text-blue-600">0 KB</div>
-                 <div className="text-xs text-blue-400 mt-1">Xử lý cục bộ 100%</div>
-              </div>
-           </div>
+  const handleUpdateSecurity = () => {
+      const questions = [q1, q2, q3].filter(q => q.trim() !== '');
+      if (questions.length < 1) {
+          alert("Vui lòng nhập ít nhất 1 câu hỏi.");
+          return;
+      }
+      updateSecurityQuestions(questions);
+      setEditingSecurity(false);
+      alert("Đã cập nhật câu hỏi bí mật!");
+  };
 
-           {/* Processing Flow */}
-           <div className="space-y-4">
-              <h4 className="font-bold text-slate-800 text-sm">Quy trình xử lý dữ liệu</h4>
-              
-              <div className="flex gap-4">
-                 <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 border-2 border-green-200 z-10">
-                        <Smartphone size={14} />
-                    </div>
-                    <div className="w-0.5 h-full bg-slate-200 -my-1"></div>
-                 </div>
-                 <div className="pb-6">
-                    <h5 className="font-bold text-slate-700 text-sm">Thu thập dữ liệu</h5>
-                    <p className="text-xs text-slate-500">Dữ liệu video/audio từ cuộc gọi được thu thập tạm thời vào bộ nhớ RAM.</p>
-                 </div>
-              </div>
+  const handleUpdateSOS = () => {
+      if (sosMsg.trim()) {
+          updateSOSMessage(sosMsg);
+          setEditingSOS(false);
+          alert("Đã cập nhật tin nhắn SOS!");
+      }
+  };
 
-              <div className="flex gap-4">
-                 <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 border-2 border-blue-200 z-10">
-                        <Loader2 size={14} className="animate-spin" />
-                    </div>
-                    <div className="w-0.5 h-full bg-slate-200 -my-1"></div>
-                 </div>
-                 <div className="pb-6">
-                    <h5 className="font-bold text-slate-700 text-sm">Phân tích cục bộ</h5>
-                    <p className="text-xs text-slate-500">AI Engine chạy trực tiếp trên thiết bị (On-Device) để so khớp khuôn mặt và giọng nói.</p>
-                 </div>
-              </div>
+  // --- SUB-SCREENS ---
+  if (showHistory) return <AlertHistoryScreen onBack={() => setShowHistory(false)} />;
+  if (showCallHistory) return <CallHistoryScreen onBack={() => setShowCallHistory(false)} />;
+  if (showMessageHistory) return <MessageHistoryScreen onBack={() => setShowMessageHistory(false)} />;
 
-              <div className="flex gap-4">
-                 <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 border-2 border-slate-200 z-10">
-                        <Server size={14} />
-                    </div>
-                 </div>
-                 <div>
-                    <h5 className="font-bold text-slate-400 text-sm line-through">Gửi lên Cloud</h5>
-                    <p className="text-xs text-slate-400 italic">Bị chặn. Không có dữ liệu nào rời khỏi thiết bị.</p>
-                 </div>
-              </div>
-           </div>
-           
-           <div className="bg-green-50 border border-green-200 p-3 rounded-xl flex items-center gap-3">
-              <CheckCircle2 size={20} className="text-green-600 flex-shrink-0" />
-              <p className="text-xs text-green-800 font-medium">Chứng chỉ bảo mật: Ứng dụng tuân thủ tiêu chuẩn mã hóa AES-256 cho dữ liệu Voice DNA.</p>
-           </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // --- SHOW HISTORY SUB-SCREEN ---
-  if (showHistory) {
-    return <AlertHistoryScreen onBack={() => setShowHistory(false)} />;
-  }
-
-  // --- LOGGED IN VIEW ---
-  if (user) {
+  // --- LOGIN / REGISTER VIEW ---
+  if (!user) {
     return (
-      <div className="p-6 pt-20 md:pt-10 pb-32 min-h-screen max-w-2xl mx-auto animate-in fade-in duration-300">
-        
-        {showVoiceModal && <VoiceSetupModal onClose={() => setShowVoiceModal(false)} />}
-        {showPrivacyLog && <PrivacyLogModal />}
-
-        {/* Profile Header */}
-        <div className="flex items-center gap-6 mb-8">
-          <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg border-4 border-white">
-            {user.name.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">{user.name}</h2>
-            <p className="text-slate-500 font-medium">{user.phone}</p>
-            <span className="inline-flex items-center gap-1 mt-2 px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
-              <Shield size={12} fill="currentColor" /> Đã bảo vệ
-            </span>
-          </div>
+      <div className="p-6 pt-24 md:pt-10 min-h-screen flex flex-col items-center justify-center animate-in fade-in max-w-md mx-auto">
+        <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center p-4 bg-blue-100 rounded-full mb-4">
+                <User size={32} className="text-blue-600" />
+            </div>
+            <h1 className="text-3xl font-black text-slate-900 mb-2">Tài Khoản</h1>
+            <p className="text-slate-500">Đăng nhập để đồng bộ dữ liệu gia đình.</p>
         </div>
 
-        {/* Settings List */}
-        <div className="space-y-6">
-          
-          {/* Account Section */}
-          <section>
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 ml-1">Tài Khoản</h3>
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <SettingItem icon={<User size={20} />} label="Thông tin cá nhân" />
-              <div className="border-t border-slate-100"></div>
-              <SettingItem icon={<CreditCard size={20} />} label="Gói đăng ký" value="Miễn phí" />
-            </div>
-          </section>
+        <div className="bg-white p-8 rounded-3xl shadow-xl w-full border border-slate-100">
+           {/* Tabs */}
+           <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+               <button 
+                 onClick={() => setAuthMode('login')}
+                 className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${authMode === 'login' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+               >
+                 Đăng Nhập
+               </button>
+               <button 
+                 onClick={() => setAuthMode('register')}
+                 className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${authMode === 'register' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+               >
+                 Đăng Ký
+               </button>
+           </div>
 
-          {/* Security Section */}
-          <section>
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 ml-1">Bảo Mật Cao Cấp</h3>
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              
-              {/* Voice DNA */}
-              <div 
-                onClick={() => setShowVoiceModal(true)}
-                className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                    <div className="text-purple-600"><Mic size={20} /></div>
-                    <span className="text-slate-700 font-medium">Voice DNA (Giọng nói)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <span className={`text-xs font-bold px-2 py-1 rounded ${user.hasVoiceProfile ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                        {user.hasVoiceProfile ? 'Đã thiết lập' : 'Chưa thiết lập'}
-                    </span>
-                    <ChevronRight size={16} className="text-slate-300" />
-                </div>
-              </div>
-
-              <div className="border-t border-slate-100"></div>
-
-              {/* Security Questions (3 Questions) */}
-              {editingSecurity ? (
-                  <div className="p-5 bg-blue-50 border-l-4 border-blue-500">
-                      <div className="flex items-center gap-2 mb-4">
-                          <KeyRound size={20} className="text-blue-600" />
-                          <h4 className="font-bold text-slate-800">Bộ Câu Hỏi Xác Thực</h4>
-                      </div>
-                      <p className="text-xs text-slate-600 mb-4">
-                          Hãy đặt 3 câu hỏi mà chỉ người thân thật sự mới biết câu trả lời.
-                      </p>
-                      
-                      <div className="space-y-3">
-                          <input 
-                            className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                            placeholder="Câu hỏi 1: (VD: Hôm qua ăn cơm món gì?)"
-                            value={q1}
-                            onChange={e => setQ1(e.target.value)}
-                          />
-                          <input 
-                            className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                            placeholder="Câu hỏi 2: (VD: Con chó nhà mình tên gì?)"
-                            value={q2}
-                            onChange={e => setQ2(e.target.value)}
-                          />
-                          <input 
-                            className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                            placeholder="Câu hỏi 3: (VD: Sinh nhật mẹ ngày mấy?)"
-                            value={q3}
-                            onChange={e => setQ3(e.target.value)}
-                          />
-                      </div>
-
-                      <div className="flex gap-3 justify-end mt-4">
-                          <button onClick={() => setEditingSecurity(false)} className="px-4 py-2 bg-white text-slate-600 font-bold rounded-lg border border-slate-300">Hủy</button>
-                          <button onClick={saveSecurityQuestions} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg flex items-center gap-2 shadow-sm">
-                              <Save size={16} /> Lưu Lại
-                          </button>
-                      </div>
-                  </div>
-              ) : (
-                <div 
-                    onClick={() => setEditingSecurity(true)}
-                    className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors cursor-pointer"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="text-blue-600"><KeyRound size={20} /></div>
-                        <div className="flex flex-col">
-                            <span className="text-slate-700 font-medium">Câu hỏi bí mật gia đình</span>
-                            <span className="text-xs text-slate-400">Dùng để kiểm tra khi có Deepfake</span>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className={`text-xs font-bold px-2 py-1 rounded ${user.securityQuestions && user.securityQuestions.length > 0 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
-                            {user.securityQuestions && user.securityQuestions.length > 0 ? `${user.securityQuestions.length} câu` : 'Chưa đặt'}
-                        </span>
-                        <ChevronRight size={16} className="text-slate-300" />
-                    </div>
+           <form onSubmit={authMode === 'login' ? handleLogin : handleRegister} className="space-y-4">
+              {authMode === 'register' && (
+                <div>
+                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Họ Tên</label>
+                   <div className="relative">
+                      <User className="absolute left-3 top-3 text-slate-400" size={18} />
+                      <input 
+                        type="text" 
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                        placeholder="Nhập họ tên"
+                        required
+                      />
+                   </div>
                 </div>
               )}
-
-              <div className="border-t border-slate-100"></div>
               
-              {/* Privacy Log Button */}
-              <div 
-                onClick={() => setShowPrivacyLog(true)}
-                className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                 <div className="flex items-center gap-3">
-                    <div className="text-green-600"><Shield size={20} /></div>
-                    <span className="text-slate-700 font-medium">Nhật Ký Riêng Tư (Audit)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-400">Xem báo cáo</span>
-                    <ChevronRight size={16} className="text-slate-300" />
-                </div>
+              <div>
+                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Số điện thoại</label>
+                   <div className="relative">
+                      <Smartphone className="absolute left-3 top-3 text-slate-400" size={18} />
+                      <input 
+                        type="tel" 
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                        placeholder="0912..."
+                        required
+                      />
+                   </div>
               </div>
 
-              <div className="border-t border-slate-100"></div>
-              <SettingItem icon={<Smartphone size={20} />} label="Mã Gia Đình" value={user.familyId.substring(0,4)+"..."} />
-            </div>
-          </section>
+              <div>
+                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Mật khẩu</label>
+                   <div className="relative">
+                      <Lock className="absolute left-3 top-3 text-slate-400" size={18} />
+                      <input 
+                        type={showPassword ? "text" : "password"} 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                        placeholder="••••••"
+                        required
+                      />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-slate-400">
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                   </div>
+              </div>
 
-           {/* App Info Section */}
-           <section>
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 ml-1">Ứng Dụng</h3>
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <SettingItem 
-                icon={<FileText size={20} />} 
-                label="Lịch sử cảnh báo" 
-                onClick={() => setShowHistory(true)}
-              /> 
-              <div className="border-t border-slate-100"></div>
-              <SettingItem icon={<Settings size={20} />} label="Phiên bản" value="1.0.4 (Demo)" />
-            </div>
-          </section>
+              {error && (
+                  <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl font-medium flex items-center gap-2">
+                      <AlertOctagon size={16} /> {error}
+                  </div>
+              )}
 
-          {/* Logout Button */}
-          <button 
-            onClick={logout}
-            className="w-full py-4 mt-4 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 border border-red-100"
-          >
-            <LogOut size={20} /> Đăng Xuất
-          </button>
-
+              <button 
+                type="submit" 
+                disabled={isSubmitting}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? <Loader2 className="animate-spin" /> : (authMode === 'login' ? 'Đăng Nhập' : 'Tạo Tài Khoản')}
+              </button>
+           </form>
         </div>
       </div>
     );
   }
 
-  // --- LOGGED OUT VIEW (Login/Register) ---
+  // --- LOGGED IN VIEW ---
   return (
-    <div className="p-6 pt-20 md:pt-10 pb-32 min-h-screen flex flex-col items-center justify-center max-w-md mx-auto animate-in slide-in-from-bottom-4 duration-500">
-      
-      <div className="w-full bg-white rounded-3xl shadow-xl border border-slate-200 p-8">
+    <div className={`p-4 md:p-6 pt-20 md:pt-10 pb-32 min-h-screen max-w-3xl mx-auto animate-in fade-in ${isSeniorMode ? 'text-lg' : ''}`}>
         
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200">
-            <Shield className="w-8 h-8 text-white" fill="currentColor" />
-          </div>
-          <h2 className="text-2xl font-black text-slate-900">TruthShield AI</h2>
-          <p className="text-slate-500 mt-1">
-            {authMode === 'login' ? 'Đăng nhập để quản lý bảo mật' : 'Tạo tài khoản bảo vệ gia đình'}
-          </p>
+        <div className="flex items-center gap-4 mb-8">
+            <div className={`rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-500 border-4 border-white shadow-sm ${isSeniorMode ? 'w-24 h-24 text-3xl' : 'w-16 h-16 text-xl'}`}>
+                {user.name.charAt(0)}
+            </div>
+            <div>
+                <h1 className={`font-black text-slate-900 ${isSeniorMode ? 'text-3xl' : 'text-2xl'}`}>{user.name}</h1>
+                <p className="text-slate-500">{user.phone}</p>
+                <div className="flex items-center gap-2 mt-1">
+                     <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${role === 'elder' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                         {role === 'elder' ? 'Người Cao Tuổi' : 'Người Quản Lý'}
+                     </span>
+                </div>
+            </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleAuth} className="space-y-4">
-          
-          {error && (
-            <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl font-medium text-center">
-              {error}
-            </div>
-          )}
+        {/* Settings Grid */}
+        <div className="space-y-6">
+            
+            {/* 1. Interface Mode */}
+            <section>
+                <h3 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 px-2">Giao diện & Vai trò</h3>
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className={`p-4 flex items-center justify-between border-b border-slate-100 ${isSeniorMode ? 'py-6' : ''}`}>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-pink-100 text-pink-600 rounded-lg"><Accessibility size={isSeniorMode ? 28 : 20} /></div>
+                            <div>
+                                <h4 className={`font-bold text-slate-800 ${isSeniorMode ? 'text-xl' : 'text-base'}`}>Chế độ Người Cao Tuổi</h4>
+                                <p className={`text-slate-500 ${isSeniorMode ? 'text-base' : 'text-xs'}`}>Chữ to, giao diện đơn giản</p>
+                            </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" className="sr-only peer" checked={isSeniorMode} onChange={toggleSeniorMode} />
+                            <div className="w-14 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-pink-500"></div>
+                        </label>
+                    </div>
 
-          {authMode === 'register' && (
-            <div className="space-y-1">
-              <label className="text-sm font-bold text-slate-700 ml-1">Họ và tên</label>
-              <div className="relative">
-                <User className="absolute left-4 top-3.5 text-slate-400" size={20} />
-                <input 
-                  type="text"
-                  required
-                  placeholder="Nhập họ tên..."
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                />
-              </div>
-            </div>
-          )}
+                    <div className={`p-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer ${isSeniorMode ? 'py-6' : ''}`} onClick={() => setRole(null)}>
+                         <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-100 text-slate-600 rounded-lg"><RefreshCw size={isSeniorMode ? 28 : 20} /></div>
+                            <div>
+                                <h4 className={`font-bold text-slate-800 ${isSeniorMode ? 'text-xl' : 'text-base'}`}>Đổi Vai Trò Sử Dụng</h4>
+                                <p className={`text-slate-500 ${isSeniorMode ? 'text-base' : 'text-xs'}`}>Chọn lại (Người Cao Tuổi / Quản Lý)</p>
+                            </div>
+                        </div>
+                        <ChevronRight className="text-slate-400" />
+                    </div>
+                </div>
+            </section>
 
-          <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700 ml-1">Số điện thoại</label>
-            <div className="relative">
-              <Smartphone className="absolute left-4 top-3.5 text-slate-400" size={20} />
-              <input 
-                type="tel"
-                required
-                placeholder="09xx xxx xxx"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              />
-            </div>
-          </div>
+            {/* 2. Security Setup */}
+            <section>
+                <h3 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 px-2">An Ninh & Bảo Mật</h3>
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    {/* Voice DNA (Self) */}
+                    <button 
+                        onClick={() => setShowVoiceModal(true)}
+                        className={`w-full text-left p-4 flex items-center justify-between border-b border-slate-100 hover:bg-slate-50 transition-colors ${isSeniorMode ? 'py-6' : ''}`}
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><Mic size={isSeniorMode ? 28 : 20} /></div>
+                            <div>
+                                <h4 className={`font-bold text-slate-800 ${isSeniorMode ? 'text-xl' : 'text-base'}`}>Voice DNA (Giọng nói)</h4>
+                                <p className={`text-slate-500 ${isSeniorMode ? 'text-base' : 'text-xs'}`}>
+                                    {user.hasVoiceProfile ? 'Đã thiết lập bảo vệ' : 'Chưa thiết lập'}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {user.hasVoiceProfile ? <CheckCircle2 size={20} className="text-green-500" /> : <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded font-bold">Cần làm ngay</span>}
+                            <ChevronRight className="text-slate-400" />
+                        </div>
+                    </button>
 
-          <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700 ml-1">Mật khẩu</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-3.5 text-slate-400" size={20} />
-              <input 
-                type={showPassword ? "text" : "password"}
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-12 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              />
-              <button 
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-3.5 text-slate-400 hover:text-slate-600"
-              >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </div>
-          </div>
+                    {/* Voice DNA Người Thân (Family Voice Profiles) */}
+                    <div className={`p-4 border-b border-slate-100 ${isSeniorMode ? 'py-6' : ''}`}>
+                         <div className="flex justify-between items-start mb-2">
+                             <div className="flex items-center gap-3">
+                                <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><Users size={isSeniorMode ? 28 : 20} /></div>
+                                <div>
+                                    <h4 className={`font-bold text-slate-800 ${isSeniorMode ? 'text-xl' : 'text-base'}`}>Voice DNA Người Thân</h4>
+                                    <p className={`text-slate-500 ${isSeniorMode ? 'text-base' : 'text-xs'}`}>Mẫu giọng nói đã đăng ký</p>
+                                </div>
+                             </div>
+                             <button onClick={() => setShowVoiceModal(true)} className="text-blue-600 font-bold text-sm">
+                                 Thêm/Sửa
+                             </button>
+                         </div>
+                         
+                         <div className="pl-12 mt-1">
+                             <div className="space-y-2">
+                                 {user.familyVoiceProfiles && user.familyVoiceProfiles.length > 0 ? (
+                                     user.familyVoiceProfiles.map((p, i) => (
+                                         <div key={i} className="flex items-center justify-between bg-purple-50 text-purple-800 text-sm px-3 py-2 rounded-lg border border-purple-100">
+                                            <span>{p.name} ({p.relationship})</span>
+                                            <CheckCircle2 size={16} className="text-green-500"/>
+                                         </div>
+                                     ))
+                                 ) : (
+                                     <span className="text-slate-400 text-sm italic">Chưa có hồ sơ giọng nói Người thân.</span>
+                                 )}
+                             </div>
+                         </div>
+                    </div>
 
-          <button 
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 mt-6 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-          >
-            {isSubmitting && <Loader2 size={20} className="animate-spin" />}
-            {authMode === 'login' ? 'Đăng Nhập' : 'Đăng Ký Ngay'}
-          </button>
+                    {/* Challenge Questions */}
+                    <div className={`p-4 border-b border-slate-100 ${isSeniorMode ? 'py-6' : ''}`}>
+                         <div className="flex justify-between items-start mb-2">
+                             <div className="flex items-center gap-3">
+                                <div className="p-2 bg-amber-100 text-amber-600 rounded-lg"><KeyRound size={isSeniorMode ? 28 : 20} /></div>
+                                <div>
+                                    <h4 className={`font-bold text-slate-800 ${isSeniorMode ? 'text-xl' : 'text-base'}`}>Câu Hỏi Bí Mật</h4>
+                                    <p className={`text-slate-500 ${isSeniorMode ? 'text-base' : 'text-xs'}`}>Dùng để hỏi người gọi đáng ngờ</p>
+                                </div>
+                             </div>
+                             <button onClick={() => setEditingSecurity(!editingSecurity)} className="text-blue-600 font-bold text-sm">
+                                 {editingSecurity ? 'Hủy' : 'Sửa'}
+                             </button>
+                         </div>
+                         
+                         {editingSecurity ? (
+                             <div className="mt-3 space-y-2 animate-in slide-in-from-top-2">
+                                 <input value={q1} onChange={e=>setQ1(e.target.value)} placeholder="Câu hỏi 1 (VD: Món ăn yêu thích?)" className="w-full p-2 border rounded-lg text-sm bg-slate-50" />
+                                 <input value={q2} onChange={e=>setQ2(e.target.value)} placeholder="Câu hỏi 2" className="w-full p-2 border rounded-lg text-sm bg-slate-50" />
+                                 <input value={q3} onChange={e=>setQ3(e.target.value)} placeholder="Câu hỏi 3" className="w-full p-2 border rounded-lg text-sm bg-slate-50" />
+                                 <button onClick={handleUpdateSecurity} className="w-full bg-blue-600 text-white font-bold py-2 rounded-lg text-sm mt-2">Lưu Câu Hỏi</button>
+                             </div>
+                         ) : (
+                             <div className="pl-12 mt-1">
+                                 <div className="flex flex-wrap gap-2">
+                                     {user.securityQuestions && user.securityQuestions.length > 0 ? (
+                                         user.securityQuestions.map((q, i) => (
+                                             <span key={i} className="bg-amber-50 text-amber-800 text-xs px-2 py-1 rounded border border-amber-100">{q}</span>
+                                         ))
+                                     ) : (
+                                         <span className="text-slate-400 text-sm italic">Chưa có câu hỏi nào.</span>
+                                     )}
+                                 </div>
+                             </div>
+                         )}
+                    </div>
 
-        </form>
+                    {/* SOS Message Config */}
+                    <div className={`p-4 ${isSeniorMode ? 'py-6' : ''}`}>
+                        <div className="flex justify-between items-start mb-2">
+                             <div className="flex items-center gap-3">
+                                <div className="p-2 bg-red-100 text-red-600 rounded-lg"><AlertOctagon size={isSeniorMode ? 28 : 20} /></div>
+                                <div>
+                                    <h4 className={`font-bold text-slate-800 ${isSeniorMode ? 'text-xl' : 'text-base'}`}>Tin Nhắn Khẩn Cấp (SOS)</h4>
+                                    <p className={`text-slate-500 ${isSeniorMode ? 'text-base' : 'text-xs'}`}>Nội dung gửi khi bấm nút SOS</p>
+                                </div>
+                             </div>
+                             <button onClick={() => setEditingSOS(!editingSOS)} className="text-blue-600 font-bold text-sm">
+                                 {editingSOS ? 'Hủy' : 'Sửa'}
+                             </button>
+                         </div>
+                         {editingSOS ? (
+                             <div className="mt-3 animate-in slide-in-from-top-2">
+                                 <textarea 
+                                    value={sosMsg} 
+                                    onChange={e=>setSosMsg(e.target.value)} 
+                                    className="w-full p-3 border rounded-lg text-sm bg-slate-50 min-h-[80px]"
+                                    placeholder="Nhập nội dung tin nhắn khẩn cấp..."
+                                 />
+                                 <button onClick={handleUpdateSOS} className="w-full bg-blue-600 text-white font-bold py-2 rounded-lg text-sm mt-2 flex items-center justify-center gap-2">
+                                     <Save size={16} /> Lưu Thay Đổi
+                                 </button>
+                             </div>
+                         ) : (
+                             <p className="pl-12 text-slate-700 italic text-sm border-l-2 border-slate-200 ml-4 pl-3 py-1">
+                                 "{user.sosMessage || 'Cha/Mẹ đang gặp nguy hiểm! Cần giúp đỡ ngay!'}"
+                             </p>
+                         )}
+                    </div>
+                </div>
+            </section>
 
-        {/* Toggle Auth Mode */}
-        <div className="mt-6 text-center">
-          <p className="text-slate-500 text-sm">
-            {authMode === 'login' ? 'Chưa có tài khoản? ' : 'Đã có tài khoản? '}
+            {/* 3. Activity Logs */}
+            <section>
+                <h3 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 px-2">Hoạt động & Nhật ký</h3>
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    {/* Message History Button */}
+                    <button 
+                        onClick={() => setShowMessageHistory(true)}
+                        className={`w-full text-left p-4 flex items-center justify-between border-b border-slate-100 hover:bg-slate-50 transition-colors ${isSeniorMode ? 'py-6' : ''}`}
+                    >
+                         <div className="flex items-center gap-3">
+                            <div className="p-2 bg-pink-100 text-pink-600 rounded-lg"><MessageSquareText size={isSeniorMode ? 28 : 20} /></div>
+                            <span className={`font-bold text-slate-700 ${isSeniorMode ? 'text-xl' : 'text-base'}`}>Lịch sử Kiểm tra Tin nhắn</span>
+                         </div>
+                         <ChevronRight className="text-slate-400" />
+                    </button>
+
+                    <button 
+                        onClick={() => setShowHistory(true)}
+                        className={`w-full text-left p-4 flex items-center justify-between border-b border-slate-100 hover:bg-slate-50 transition-colors ${isSeniorMode ? 'py-6' : ''}`}
+                    >
+                         <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-100 text-slate-600 rounded-lg"><Bell size={isSeniorMode ? 28 : 20} /></div>
+                            <span className={`font-bold text-slate-700 ${isSeniorMode ? 'text-xl' : 'text-base'}`}>Lịch sử Cảnh báo</span>
+                         </div>
+                         <ChevronRight className="text-slate-400" />
+                    </button>
+                    
+                    <button 
+                        onClick={() => setShowCallHistory(true)}
+                        className={`w-full text-left p-4 flex items-center justify-between hover:bg-slate-50 transition-colors ${isSeniorMode ? 'py-6' : ''}`}
+                    >
+                         <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-100 text-slate-600 rounded-lg"><Phone size={isSeniorMode ? 28 : 20} /></div>
+                            <span className={`font-bold text-slate-700 ${isSeniorMode ? 'text-xl' : 'text-base'}`}>Nhật ký Cuộc gọi</span>
+                         </div>
+                         <ChevronRight className="text-slate-400" />
+                    </button>
+                </div>
+            </section>
+
             <button 
-              onClick={() => {
-                setAuthMode(authMode === 'login' ? 'register' : 'login');
-                setError('');
-              }}
-              className="text-blue-600 font-bold hover:underline"
+                onClick={logout}
+                className={`w-full bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 font-bold rounded-2xl flex items-center justify-center gap-2 transition-colors ${isSeniorMode ? 'py-6 text-xl' : 'py-4'}`}
             >
-              {authMode === 'login' ? 'Đăng ký' : 'Đăng nhập'}
+                <LogOut size={isSeniorMode ? 24 : 20} /> Đăng Xuất
             </button>
-          </p>
+            
+            <div className="text-center text-xs text-slate-300 font-mono pb-4">
+                Version 2.5.0 (Beta) • ID: {user.id.slice(-6)}
+            </div>
         </div>
 
-      </div>
+        {showVoiceModal && (
+            <VoiceSetupModal onClose={() => setShowVoiceModal(false)} />
+        )}
     </div>
   );
 };
-
-// --- Helper Components ---
-
-interface SettingItemProps {
-  icon: React.ReactNode;
-  label: string;
-  value?: string;
-  onClick?: () => void;
-}
-
-const SettingItem: React.FC<SettingItemProps> = ({ icon, label, value, onClick }) => (
-  <div 
-    onClick={onClick}
-    className={`flex items-center justify-between p-4 hover:bg-slate-50 transition-colors ${onClick ? 'cursor-pointer' : ''}`}
-  >
-    <div className="flex items-center gap-3">
-      <div className="text-slate-400">
-        {icon}
-      </div>
-      <span className="text-slate-700 font-medium">{label}</span>
-    </div>
-    <div className="flex items-center gap-2">
-      {value && <span className="text-sm text-slate-400">{value}</span>}
-      <ChevronRight size={16} className="text-slate-300" />
-    </div>
-  </div>
-);
 
 export default ProfileScreen;

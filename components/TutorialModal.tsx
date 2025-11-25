@@ -1,25 +1,32 @@
-
 import React, { useState } from 'react';
-import { X, Play, Shield, Smartphone, MessageSquareText, AlertTriangle, CheckCircle2, ArrowRight } from 'lucide-react';
+import { X, Play, ArrowRight } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface TutorialModalProps {
   onClose: () => void;
 }
 
 const TutorialModal: React.FC<TutorialModalProps> = ({ onClose }) => {
+  const { isSeniorMode } = useAuth();
   const [activeVideo, setActiveVideo] = useState(0);
 
+  // YouTube Video IDs for real content
   const tutorials = [
-    { id: 0, title: "1. Làm quen với ứng dụng", desc: "Cách bật bảo vệ và thiết lập ban đầu.", icon: <Shield size={20} /> },
-    { id: 1, title: "2. Quét tin nhắn rác", desc: "Phát hiện tin nhắn lừa đảo bằng AI.", icon: <MessageSquareText size={20} /> },
-    { id: 2, title: "3. Hỏi đáp với Trợ lý", desc: "Cách chat với AI để nhận lời khuyên.", icon: <Smartphone size={20} /> },
-    { id: 3, title: "4. Xử lý khi có Cảnh báo", desc: "Phải làm gì khi màn hình đỏ hiện lên?", icon: <AlertTriangle size={20} /> },
+    { id: 0, title: "1. Giới thiệu TruthShield", desc: "Cách bật bảo vệ và thiết lập ban đầu.", videoId: "z1-2hJ8tSbc" }, // Example: AI Security Intro
+    { id: 1, title: "2. Cảnh báo Lừa Đảo", desc: "Cách nhận biết cuộc gọi giả mạo.", videoId: "XuR4F-3s2j0" }, // Example: Phishing
+    { id: 2, title: "3. Bảo vệ Gia đình", desc: "Kết nối và giám sát người thân.", videoId: "9m3Xh6YkY4g" }, // Example: Family Safety
+    { id: 3, title: "4. Công nghệ AI", desc: "AI phát hiện Deepfake như thế nào?", videoId: "m7YhXWj3gxE" }, // Example: AI Tech
   ];
 
   return (
-    <div className="fixed inset-0 z-[80] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in zoom-in duration-300">
+    <div 
+        className="fixed inset-0 z-[80] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in zoom-in duration-300"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tutorial-title"
+    >
       
-      <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-200">
+      <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-200">
         
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-white">
@@ -28,11 +35,11 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose }) => {
                <Play size={24} className="text-blue-600 fill-blue-600 ml-1" />
              </div>
              <div>
-               <h2 className="text-slate-900 font-bold text-2xl">Hướng Dẫn Sử Dụng</h2>
-               <p className="text-slate-500 text-base">Xem video để biết cách bảo vệ bản thân</p>
+               <h2 id="tutorial-title" className={`${isSeniorMode ? 'text-3xl' : 'text-2xl'} font-bold text-slate-900`}>Hướng Dẫn Sử Dụng</h2>
+               <p className={`${isSeniorMode ? 'text-lg' : 'text-base'} text-slate-500`}>Xem video để biết cách bảo vệ bản thân</p>
              </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-800 transition-colors bg-slate-100 p-3 rounded-full touch-target">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-800 transition-colors bg-slate-100 p-3 rounded-full touch-target" aria-label="Đóng hướng dẫn">
             <X size={28} />
           </button>
         </div>
@@ -40,26 +47,18 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose }) => {
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
             
             {/* Video Player Area */}
-            <div className="flex-1 bg-slate-900 p-6 flex items-center justify-center relative">
-                <div className="aspect-video w-full bg-black rounded-2xl shadow-lg relative group overflow-hidden border-4 border-slate-700">
-                    {/* Video Placeholder Background - Changes based on active selection */}
-                    <div className={`absolute inset-0 bg-cover bg-center opacity-60 transition-all duration-500 ${
-                        activeVideo === 0 ? "bg-[url('https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800')]" :
-                        activeVideo === 1 ? "bg-[url('https://images.unsplash.com/photo-1555421689-492a1880562a?w=800')]" :
-                        activeVideo === 2 ? "bg-[url('https://images.unsplash.com/photo-1531746790731-6c087fecd65a?w=800')]" :
-                        "bg-[url('https://images.unsplash.com/photo-1510511459019-5dda7724fd82?w=800')]"
-                    }`}></div>
-                    
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border-4 border-white group-hover:scale-110 transition-transform duration-300 cursor-pointer hover:bg-white/30">
-                            <Play size={32} className="text-white fill-white ml-1" />
-                        </div>
-                    </div>
-
-                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent text-white">
-                        <span className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded uppercase mb-2 inline-block">Đang xem</span>
-                        <h3 className="text-xl font-bold">{tutorials[activeVideo].title}</h3>
-                    </div>
+            <div className="flex-1 bg-slate-900 p-0 flex items-center justify-center relative bg-black">
+                <div className="w-full h-full relative group">
+                    <iframe 
+                        width="100%" 
+                        height="100%" 
+                        src={`https://www.youtube.com/embed/${tutorials[activeVideo].videoId}?autoplay=1&rel=0`}
+                        title="YouTube video player" 
+                        frameBorder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                        allowFullScreen
+                        className="w-full h-full"
+                    ></iframe>
                 </div>
             </div>
 
@@ -70,20 +69,22 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose }) => {
                     <button 
                         key={t.id}
                         onClick={() => setActiveVideo(idx)}
-                        className={`w-full text-left p-4 rounded-2xl transition-all flex items-start gap-3 border-2 ${
+                        className={`w-full text-left rounded-2xl transition-all flex items-start gap-3 border-2 ${
+                            isSeniorMode ? 'p-6' : 'p-4'
+                        } ${
                             activeVideo === idx 
                             ? 'bg-blue-50 border-blue-500 shadow-sm' 
                             : 'bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-300'
                         }`}
                     >
-                        <div className={`mt-1 ${activeVideo === idx ? 'text-blue-600' : 'text-slate-400'}`}>
-                            {activeVideo === idx ? <Play size={20} fill="currentColor" /> : t.icon}
+                        <div className={`mt-1 flex-shrink-0 ${activeVideo === idx ? 'text-blue-600' : 'text-slate-400'}`}>
+                            {activeVideo === idx ? <Play size={isSeniorMode ? 24 : 20} fill="currentColor" /> : <div className="w-6 h-6 rounded-full border-2 border-slate-300 flex items-center justify-center text-[10px] font-bold">{idx + 1}</div>}
                         </div>
                         <div>
-                            <h4 className={`font-bold text-base ${activeVideo === idx ? 'text-blue-900' : 'text-slate-700'}`}>
+                            <h4 className={`font-bold ${isSeniorMode ? 'text-lg' : 'text-base'} ${activeVideo === idx ? 'text-blue-900' : 'text-slate-700'}`}>
                                 {t.title}
                             </h4>
-                            <p className="text-sm text-slate-500 mt-1 leading-tight">{t.desc}</p>
+                            <p className={`${isSeniorMode ? 'text-base' : 'text-sm'} text-slate-500 mt-1 leading-tight`}>{t.desc}</p>
                         </div>
                     </button>
                 ))}

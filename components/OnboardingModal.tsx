@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Shield, Mic, Zap, CheckCircle } from 'lucide-react';
+import { Shield, Mic, Zap, CheckCircle, Smartphone } from 'lucide-react';
 
 interface OnboardingModalProps {
   onClose: () => void;
@@ -11,18 +12,18 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onClose }) => {
   const steps = [
     {
       icon: <Shield size={64} className="text-blue-600" />,
-      title: "Bảo vệ gia đình",
-      desc: "TruthShield AI sử dụng công nghệ lõi 3 lớp để phát hiện deepfake video call ngay lập tức."
+      title: "Phân tích Âm thanh & Môi trường",
+      desc: "TruthShield AI giám sát môi trường và phân tích âm thanh loa ngoài để phát hiện dấu hiệu lừa đảo theo thời gian thực."
     },
     {
       icon: <Mic size={64} className="text-purple-600" />,
-      title: "Voice DNA",
-      desc: "Chỉ cần 30 giây ghi âm, AI sẽ học và nhận diện giọng nói người thân của bạn với độ chính xác 99.5%."
+      title: "Xử lý dữ liệu tại thiết bị",
+      desc: "Ưu tiên quyền riêng tư. Mọi phân tích đều diễn ra cục bộ (On-Device) trên máy của bạn, không gửi dữ liệu nhạy cảm lên Cloud."
     },
     {
-      icon: <Zap size={64} className="text-yellow-500" />,
-      title: "Cảnh báo Real-time",
-      desc: "Nhận cảnh báo ngay lập tức khi phát hiện dấu hiệu lừa đảo. Con cái có thể can thiệp từ xa."
+      icon: <Smartphone size={64} className="text-yellow-500" />,
+      title: "Kết nối Gia Đình & Can thiệp từ xa",
+      desc: "Con cái có thể nhận cảnh báo và thực hiện 'Ngắt kết nối khẩn cấp' để bảo vệ cha mẹ khỏi các cuộc gọi nguy hiểm."
     }
   ];
 
@@ -43,11 +44,11 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onClose }) => {
         <div className="absolute bottom-0 right-0 w-24 h-24 bg-purple-50 rounded-full translate-x-1/2 translate-y-1/2"></div>
 
         <div className="relative z-10 h-64 flex flex-col items-center justify-center">
-          <div className="mb-6 bg-slate-50 p-6 rounded-full animate-in zoom-in duration-300">
+          <div className="mb-6 bg-slate-50 p-6 rounded-full animate-in zoom-in duration-300 border border-slate-100 shadow-sm">
             {steps[step].icon}
           </div>
           <h2 className="text-2xl font-black text-slate-800 mb-3">{steps[step].title}</h2>
-          <p className="text-slate-500 leading-relaxed text-sm">{steps[step].desc}</p>
+          <p className="text-slate-500 leading-relaxed text-sm px-2">{steps[step].desc}</p>
         </div>
 
         <div className="flex justify-center gap-2 mb-8 mt-4">
